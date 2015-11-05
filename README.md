@@ -12,7 +12,11 @@
 
 ## Installation
 
-``Riverline\MultiPartParse`` is compatible with composer and any prs-0 autoloader
+``Riverline\MultiPartParse`` is compatible with composer and any prs-0 autoloader.
+
+```
+composer require riverline/multipart-parser
+```
 
 ## Usage
 
