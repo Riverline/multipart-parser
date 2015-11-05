@@ -1,0 +1,25 @@
+{
+  "name":"riverline/multipart-parser",
+  "description":"Library to parse multipart requests",
+  "keywords":["http","multipart","parser"],
+  "type":"library",
+  "license":"MIT",
+  "authors":[
+    {
+      "name":"Romain Cambien",
+      "email":"romain@riverline.fr"
+    },
+    {
+      "name":"Riverline",
+      "homepage":"http://www.riverline.fr"
+    }
+  ],
+  "require":{
+    "php":           ">=5.1"
+  },
+  "autoload":{
+    "psr-0":{
+      "Riverline\\MultiPartParser": "src/"
+    }
+  }
+}
