@@ -1,5 +1,7 @@
 # README
 
+[![Build Status](https://travis-ci.org/Riverline/multipart-parser.svg?branch=master)](https://travis-ci.org/Riverline/multipart-parser)
+
 ## What is Riverline\MultiPartParser
 
 ``Riverline\MultiPartParse`` is a simple lib to parse multipart document ( multipart email, multipart form, etc ...) and manage each part encoding and charset to extract their content.
