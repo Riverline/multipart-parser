@@ -8,7 +8,7 @@
 
 ## Requirements
 
-* PHP 5.1
+* PHP 5.3
 
 ## Installation
 
@@ -35,6 +35,10 @@ Content-Type: multipart/form-data; boundary=----------------------------83ff5382
 Content-Disposition: form-data; name="foo"
 
 bar
+------------------------------83ff53821b7c
+Content-Transfer-Encoding: base64
+
+YmFzZTY0
 ------------------------------83ff53821b7c--
 EOL;
 
@@ -43,10 +47,22 @@ $document = new Part($content);
 if ($document->isMultiPart()) {
     $parts = $document->getParts();
     echo $parts[0]->getBody(); // Output bar
+    // It decode encoded content
+    echo $parts[1]->getBody(); // Output base64
+
+    // You can also filter by part name
+    $parts = $document->getPartsByName('foo');
+    echo $parts[0]->getName(); // Output foo
+
+    // You can extract the headers
+    $contentDisposition = $parts[0]->getHeader('Content-Disposition');
+    echo $contentDisposition; // Output Content-Disposition: form-data; name="foo"
+    // Helpers
+    echo Part::getHeaderValue($contentDisposition); // Output form-data
+    echo Part::getHeaderOption($contentDisposition, 'name'); // Output foo
 }
 ```
 
 ## TODO
 
-* Process Content-Disposition to find part by name
 * Add file part helper

@@ -21,17 +21,7 @@ class Part
     protected $body;
 
     /**
-     * @var string
-     */
-    protected $mimeType = 'application/octet-stream';
-
-    /**
-     * @var array
-     */
-    protected $mimeOptions = array();
-
-    /**
-     * @var array
+     * @var Part[]
      */
     protected $parts = array();
 
@@ -61,36 +51,34 @@ class Part
         // Is MultiPart ?
         $contentType = $this->getHeader('Content-Type');
         if (null !== $contentType) {
-            // Extract MimeType
-            list($this->mimeType, $this->mimeOptions) = $this->parseHeaderContent($contentType);
-
-            if ('multipart' === strstr($this->mimeType, '/', true)) {
+            if ('multipart' === strstr(self::getHeaderValue($contentType), '/', true)) {
                 // MultiPart !
                 $this->multipart = true;
+                $boundary = self::getHeaderOption($contentType, 'boundary');
 
-                if (!isset($this->mimeOptions['boundary'])) {
+                if (null === $boundary) {
                     throw new \InvalidArgumentException("Can't find boundary in content type");
                 }
 
-                $boundary = '--'.$this->mimeOptions['boundary'];
+                $separator = '--'.$boundary;
 
                 // Find start boundary
-                $firstBoundaryPos = strpos($body, $boundary.self::NEW_LINE);
-                if (false === $firstBoundaryPos) {
+                $firstSeparatorPos = strpos($body, $separator.self::NEW_LINE);
+                if (false === $firstSeparatorPos) {
                     throw new \InvalidArgumentException("Can't find first boundary in content");
                 }
 
                 // Find end boundary
-                $lastBoundaryPos = strpos($body, self::NEW_LINE.$boundary.'--', $firstBoundaryPos);
-                if (false === $lastBoundaryPos) {
+                $lastSeparatorPos = strpos($body, self::NEW_LINE.$separator.'--', $firstSeparatorPos);
+                if (false === $lastSeparatorPos) {
                     throw new \InvalidArgumentException("Content is incomplete, missing end boundary");
                 }
 
                 // Get content
-                $body = substr($body, $firstBoundaryPos+strlen($boundary), $lastBoundaryPos - $firstBoundaryPos - strlen($boundary));
+                $body = substr($body, $firstSeparatorPos+strlen($separator), $lastSeparatorPos - $firstSeparatorPos - strlen($separator));
 
                 // Get parts
-                $parts = explode(self::NEW_LINE.$boundary.self::NEW_LINE, $body);
+                $parts = explode(self::NEW_LINE.$separator.self::NEW_LINE, $body);
 
                 foreach ($parts as $part) {
                     $this->parts[] = new self($part);
@@ -111,23 +99,24 @@ class Part
                     break;
             }
 
-            // Normalize ( Not if binary or 7bit ( aka Ascii ) )
+            // Convert to UTF-8 ( Not if binary or 7bit ( aka Ascii ) )
             if (!in_array($encoding, array('binary', '7bit'))) {
                 // Charset
-                $charset = 'utf-8';
-                if (isset($this->mimeOptions['charset'])) {
-                    $charset = $this->mimeOptions['charset'];
-                } else {
+                $charset = self::getHeaderOption($contentType, 'charset');
+                if (null === $charset) {
                     // Try to detect
-                    $detectedCharset = mb_detect_encoding($body, array('UTF-8', 'ISO-8859-15', 'ISO-8859-1'));
+                    $detectedCharset = mb_detect_encoding($body);
                     if (false !== $detectedCharset) {
                         $charset = $detectedCharset;
+                    } else {
+                        // Default
+                        $charset = 'utf-8';
                     }
                 }
 
                 // Only convert if not UTF-8
                 if ('utf-8' !== strtolower($charset)) {
-                    $body = mb_convert_encoding($body, 'utf-8', $this->mimeOptions['charset']);
+                    $body = mb_convert_encoding($body, 'utf-8', $charset);
                 }
             }
 
@@ -187,26 +176,6 @@ class Part
     }
 
     /**
-     * @param string $content
-     * @return array
-     */
-    protected function parseHeaderContent($content)
-    {
-        $parts = explode(';', $content);
-        $headerValue = array_shift($parts);
-        $options = array();
-        if (count($parts) > 0) {
-            // Parse options
-            foreach ($parts as $part) {
-                list ($key, $value) = explode('=', $part, 2);
-                $options[trim($key)] = trim($value, ' "');
-            }
-        }
-
-        return array($headerValue, $options);
-    }
-
-    /**
      * @return bool
      */
     public function isMultiPart()
@@ -252,13 +221,122 @@ class Part
     }
 
     /**
+     * @param string $content
      * @return array
+     */
+    static protected function parseHeaderContent($content)
+    {
+        $parts = explode(';', $content);
+        $headerValue = array_shift($parts);
+        $options = array();
+        if (count($parts) > 0) {
+            // Parse options
+            foreach ($parts as $part) {
+                list ($key, $value) = explode('=', $part, 2);
+                $options[trim($key)] = trim($value, ' "');
+            }
+        }
+
+        return array($headerValue, $options);
+    }
+
+    /**
+     * @param string $header
+     * @return string
+     */
+    static public function getHeaderValue($header)
+    {
+        list($value) = self::parseHeaderContent($header);
+
+        return $value;
+    }
+
+    /**
+     * @param string $header
+     * @return string
+     */
+    static public function getHeaderOptions($header)
+    {
+        list(,$options) = self::parseHeaderContent($header);
+
+        return $options;
+    }
+
+    /**
+     * @param string $header
+     * @param string $key
+     * @param mixed  $default
+     * @return mixed
+     */
+    static public function getHeaderOption($header, $key, $default = null)
+    {
+        list(,$options) = self::parseHeaderContent($header);
+
+        if (isset($options[$key])) {
+            return $options[$key];
+        } else {
+            return $default;
+        }
+    }
+
+    /**
+     * @return string
+     */
+    public function getMimeType()
+    {
+        // Find Content-Disposition
+        $contentType = $this->getHeader('Content-Type');
+        if (null !== $contentType) {
+            return self::getHeaderValue($contentType);
+        }
+
+        return 'application/octet-stream';
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getName()
+    {
+        // Find Content-Disposition
+        $contentDisposition = $this->getHeader('Content-Disposition');
+        if (null !== $contentDisposition) {
+            return self::getHeaderOption($contentDisposition, 'name');
+        }
+
+        return null;
+    }
+
+    /**
+     * @return Part[]
      * @throw \LogicException if is not multipart
      */
     public function getParts()
     {
         if ($this->isMultiPart()) {
             return $this->parts;
+        } else {
+            throw new \LogicException("Not MultiPart content, there aren't any parts");
+        }
+    }
+
+    /**
+     * @param string $name
+     * @return Part[]
+     * @throw \LogicException if is not multipart
+     */
+    public function getPartsByName($name)
+    {
+        if ($this->isMultiPart()) {
+            $parts = array();
+
+            foreach ($this->parts as $part) {
+                if ($part->getName() === $name) {
+                    $parts[] = $part;
+                }
+            }
+
+            return $parts;
         } else {
             throw new \LogicException("Not MultiPart content, there aren't any parts");
         }

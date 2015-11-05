@@ -73,9 +73,37 @@ class PartTest extends \PHPUnit_Framework_TestCase
         $part = new Part($content);
 
         $this->assertTrue($part->isMultiPart());
+        $this->assertCount(2, $part->getParts());
 
         $this->setExpectedException('\LogicException', "MultiPart content, there aren't body");
         $part->getBody();
+    }
+
+    /**
+     * Test filter by name on a simple multipart document
+     */
+    public function testFilterByName()
+    {
+        $content = file_get_contents(__DIR__.'/../../data/simple_multipart.txt');
+
+        $part = new Part($content);
+
+        $this->assertCount(1, $part->getPartsByName('foo'));
+    }
+
+    /**
+     * Test header helpers
+     */
+    public function testHeaderHelpers()
+    {
+        $content = file_get_contents(__DIR__.'/../../data/simple_multipart.txt');
+
+        $part = new Part($content);
+        $parts = $part->getParts();
+        $header = $parts[1]->getHeader('Content-Disposition');
+
+        $this->assertEquals('form-data', Part::getHeaderValue($header));
+        $this->assertEquals('foo', Part::getHeaderOption($header, 'name'));
     }
 
     /**
