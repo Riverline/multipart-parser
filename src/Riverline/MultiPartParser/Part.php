@@ -83,11 +83,11 @@ class Part
             $value = mb_decode_mimeheader($value);
             // Case-insensitive key
             $key = strtolower($key);
-            if (!isset($headers[$key])) {
+            if (!isset($this->headers[$key])) {
                 $this->headers[$key] = $value;
             } else {
-                if (!is_array($headers[$key])) {
-                    $this->headers[$key] = ((array) $headers[$key]);
+                if (!is_array($this->headers[$key])) {
+                    $this->headers[$key] = ((array) $this->headers[$key]);
                 }
                 $this->headers[$key][] = $value;
             }
