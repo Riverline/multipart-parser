@@ -36,8 +36,15 @@ class Part
      */
     public function __construct($content)
     {
+        // Detect new line stype
+        if (false !== strpos($content, "\r\n\r\n")) {
+            $newLine = "\r\n";
+        } else {
+            $newLine = "\n";
+        }
+
         // Split headers and body
-        $splits = explode(self::NEW_LINE.self::NEW_LINE, $content, 2);
+        $splits = explode($newLine.$newLine, $content, 2);
 
         if (count($splits) < 2) {
             throw new \InvalidArgumentException("Content is not valid");
@@ -45,8 +52,46 @@ class Part
 
         list ($headers, $body) = $splits;
 
+        // Regroup multiline headers
+        $currentHeader = '';
+        $headerLines = array();
+        foreach (explode($newLine, $headers) as $line) {
+            if (empty($line)) {
+                // Skip empty line
+                continue;
+            }
+            if (' ' === $line{0}) {
+                // Multi line header
+                $currentHeader .= ' '.trim($line);
+            } else {
+                if (!empty($currentHeader)) {
+                    $headerLines[] = $currentHeader;
+                }
+                $currentHeader = trim($line);
+            }
+        }
+
+        if (!empty($currentHeader)) {
+            $headerLines[] = $currentHeader;
+        }
+
         // Parse headers
-        $this->headers = $this->parseHeaders($headers);
+        $this->headers = array();
+        foreach ($headerLines as $line) {
+            list($key, $value) = explode(': ', $line, 2);
+            // Decode value
+            $value = mb_decode_mimeheader($value);
+            // Case-insensitive key
+            $key = strtolower($key);
+            if (!isset($headers[$key])) {
+                $this->headers[$key] = $value;
+            } else {
+                if (!is_array($headers[$key])) {
+                    $this->headers[$key] = ((array) $headers[$key]);
+                }
+                $this->headers[$key][] = $value;
+            }
+        }
 
         // Is MultiPart ?
         $contentType = $this->getHeader('Content-Type');
@@ -63,13 +108,13 @@ class Part
                 $separator = '--'.$boundary;
 
                 // Find start boundary
-                $firstSeparatorPos = strpos($body, $separator.self::NEW_LINE);
+                $firstSeparatorPos = strpos($body, $separator.$newLine);
                 if (false === $firstSeparatorPos) {
                     throw new \InvalidArgumentException("Can't find first boundary in content");
                 }
 
                 // Find end boundary
-                $lastSeparatorPos = strpos($body, self::NEW_LINE.$separator.'--', $firstSeparatorPos);
+                $lastSeparatorPos = strpos($body, $newLine.$separator.'--', $firstSeparatorPos);
                 if (false === $lastSeparatorPos) {
                     throw new \InvalidArgumentException("Content is incomplete, missing end boundary");
                 }
@@ -78,7 +123,7 @@ class Part
                 $body = substr($body, $firstSeparatorPos+strlen($separator), $lastSeparatorPos - $firstSeparatorPos - strlen($separator));
 
                 // Get parts
-                $parts = explode(self::NEW_LINE.$separator.self::NEW_LINE, $body);
+                $parts = explode($newLine.$separator.$newLine, $body);
 
                 foreach ($parts as $part) {
                     $this->parts[] = new self($part);
@@ -122,57 +167,6 @@ class Part
 
             $this->body = $body;
         }
-    }
-
-    /**
-     * @param string $content
-     * @return array
-     */
-    protected function parseHeaders($content)
-    {
-        $currentHeader = '';
-        $headerLines = array();
-
-        // Regroup multiline headers
-        foreach (explode(self::NEW_LINE, $content) as $line) {
-            if (empty($line)) {
-                // Skip empty line
-                continue;
-            }
-            if (' ' === $line{0}) {
-                // Multi line header
-                $currentHeader .= ' '.trim($line);
-            } else {
-                if (!empty($currentHeader)) {
-                    $headerLines[] = $currentHeader;
-                }
-                $currentHeader = trim($line);
-            }
-        }
-
-        if (!empty($currentHeader)) {
-            $headerLines[] = $currentHeader;
-        }
-
-        // Parse headers
-        $headers = array();
-        foreach ($headerLines as $line) {
-            list($key, $value) = explode(': ', $line, 2);
-            // Decode value
-            $value = mb_decode_mimeheader($value);
-            // Case-insensitive key
-            $key = strtolower($key);
-            if (!isset($headers[$key])) {
-                $headers[$key] = $value;
-            } else {
-                if (!is_array($headers[$key])) {
-                    $headers[$key] = ((array) $headers[$key]);
-                }
-                $headers[$key][] = $value;
-            }
-        }
-
-        return $headers;
     }
 
     /**

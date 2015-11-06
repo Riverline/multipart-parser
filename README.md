@@ -4,7 +4,7 @@
 
 ## What is Riverline\MultiPartParser
 
-``Riverline\MultiPartParse`` is a simple lib to parse multipart document ( multipart email, multipart form, etc ...) and manage each part encoding and charset to extract their content.
+``Riverline\MultiPartParse`` is a one class lib to parse multipart document ( multipart email, multipart form, etc ...) and manage each part encoding and charset to extract their content.
 
 ## Requirements
 

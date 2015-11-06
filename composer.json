@@ -1,6 +1,6 @@
 {
   "name":"riverline/multipart-parser",
-  "description":"Library to parse multipart requests",
+  "description":"One class library to parse multipart content with encoding and charset support.",
   "keywords":["http","multipart","parser"],
   "type":"library",
   "license":"MIT",
