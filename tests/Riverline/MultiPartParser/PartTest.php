@@ -107,6 +107,21 @@ class PartTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
+     * Test file helper
+     */
+    public function testFileHelper()
+    {
+        $content = file_get_contents(__DIR__.'/../../data/simple_multipart.txt');
+
+        $part = new Part($content);
+        $parts = $part->getParts();
+
+        $this->assertTrue($parts[0]->isFile());
+        $this->assertEquals('a.png', $parts[0]->getFileName());
+    }
+
+
+    /**
      * Test a nested multipart document
      */
     public function testNestedMultiPart()

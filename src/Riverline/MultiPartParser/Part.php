@@ -302,6 +302,28 @@ class Part
     }
 
     /**
+     * @return string|null
+     */
+    public function getFileName()
+    {
+        // Find Content-Disposition
+        $contentDisposition = $this->getHeader('Content-Disposition');
+        if (null !== $contentDisposition) {
+            return self::getHeaderOption($contentDisposition, 'filename');
+        }
+
+        return null;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isFile()
+    {
+        return !is_null($this->getFileName());
+    }
+
+    /**
      * @return Part[]
      * @throw \LogicException if is not multipart
      */

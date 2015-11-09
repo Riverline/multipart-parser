@@ -39,6 +39,11 @@ bar
 Content-Transfer-Encoding: base64
 
 YmFzZTY0
+------------------------------83ff53821b7c
+Content-Disposition: form-data; name="upload"; filename="text.txt"
+Content-Type: text/plain
+
+File content
 ------------------------------83ff53821b7c--
 EOL;
 
@@ -60,9 +65,11 @@ if ($document->isMultiPart()) {
     // Helpers
     echo Part::getHeaderValue($contentDisposition); // Output form-data
     echo Part::getHeaderOption($contentDisposition, 'name'); // Output foo
+
+    // File helper
+    if ($parts[2]->isFile()) {
+        echo $parts[2]->getFileName(); // Output text.txt
+        echo $parts[2]->getMimeType(); // Output text/plain
+    }
 }
 ```
-
-## TODO
-
-* Add file part helper
