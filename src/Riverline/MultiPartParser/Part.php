@@ -226,8 +226,10 @@ class Part
         if (count($parts) > 0) {
             // Parse options
             foreach ($parts as $part) {
-                list ($key, $value) = explode('=', $part, 2);
-                $options[trim($key)] = trim($value, ' "');
+                if (!empty($part)) {
+                    list ($key, $value) = explode('=', $part, 2);
+                    $options[trim($key)] = trim($value, ' "');
+                }
             }
         }
 
