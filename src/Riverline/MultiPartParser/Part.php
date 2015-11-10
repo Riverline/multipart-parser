@@ -37,17 +37,17 @@ class Part
     public function __construct($content)
     {
         // Detect new line stype
-        if (false !== strpos($content, "\r\n\r\n")) {
-            $newLine = "\r\n";
-        } else {
-            $newLine = "\n";
+        if (!preg_match('/\r?\n/', $content, $matches)) {
+            throw new \InvalidArgumentException("Content is not valid, can't detect end of line");
         }
+
+        $newLine = $matches[0];
 
         // Split headers and body
         $splits = explode($newLine.$newLine, $content, 2);
 
         if (count($splits) < 2) {
-            throw new \InvalidArgumentException("Content is not valid");
+            throw new \InvalidArgumentException("Content is not valid, can't split headers and content");
         }
 
         list ($headers, $body) = $splits;
@@ -60,7 +60,7 @@ class Part
                 // Skip empty line
                 continue;
             }
-            if (' ' === $line{0}) {
+            if (' ' === $line{0} || "\t" === $line{0}) {
                 // Multi line header
                 $currentHeader .= ' '.trim($line);
             } else {
