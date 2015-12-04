@@ -8,8 +8,6 @@ namespace Riverline\MultiPartParser;
  */
 class Part
 {
-    const NEW_LINE = "\r\n";
-
     /**
      * @var array
      */
@@ -36,15 +34,8 @@ class Part
      */
     public function __construct($content)
     {
-        // Detect new line stype
-        if (!preg_match('/\r?\n/', $content, $matches)) {
-            throw new \InvalidArgumentException("Content is not valid, can't detect end of line");
-        }
-
-        $newLine = $matches[0];
-
         // Split headers and body
-        $splits = explode($newLine.$newLine, $content, 2);
+        $splits = preg_split('/(\r?\n){2}/', $content, 2);
 
         if (count($splits) < 2) {
             throw new \InvalidArgumentException("Content is not valid, can't split headers and content");
@@ -55,9 +46,8 @@ class Part
         // Regroup multiline headers
         $currentHeader = '';
         $headerLines = array();
-        foreach (explode($newLine, $headers) as $line) {
+        foreach (preg_split('/\r?\n/', $headers) as $line) {
             if (empty($line)) {
-                // Skip empty line
                 continue;
             }
             if (' ' === $line{0} || "\t" === $line{0}) {
@@ -95,39 +85,29 @@ class Part
 
         // Is MultiPart ?
         $contentType = $this->getHeader('Content-Type');
-        if (null !== $contentType) {
-            if ('multipart' === strstr(self::getHeaderValue($contentType), '/', true)) {
-                // MultiPart !
-                $this->multipart = true;
-                $boundary = self::getHeaderOption($contentType, 'boundary');
+        if (null !== $contentType
+            && 'multipart' === strstr(self::getHeaderValue($contentType), '/', true)
+        ) {
+            // MultiPart !
+            $this->multipart = true;
+            $boundary = self::getHeaderOption($contentType, 'boundary');
 
-                if (null === $boundary) {
-                    throw new \InvalidArgumentException("Can't find boundary in content type");
-                }
+            if (null === $boundary) {
+                throw new \InvalidArgumentException("Can't find boundary in content type");
+            }
 
-                $separator = '--'.$boundary;
+            $separator = '--'.preg_quote($boundary);
 
-                // Find start boundary
-                $firstSeparatorPos = strpos($body, $separator.$newLine);
-                if (false === $firstSeparatorPos) {
-                    throw new \InvalidArgumentException("Can't find first boundary in content");
-                }
+            // Get multi-part content
+            if (0 === preg_match('/'.$separator.'\r?\n(.+)\r?\n'.$separator.'--/s', $body, $matches)) {
+                throw new \InvalidArgumentException("Can't find multi-part content");
+            }
 
-                // Find end boundary
-                $lastSeparatorPos = strpos($body, $newLine.$separator.'--', $firstSeparatorPos);
-                if (false === $lastSeparatorPos) {
-                    throw new \InvalidArgumentException("Content is incomplete, missing end boundary");
-                }
+            // Get parts
+            $parts = preg_split('/\r?\n'.$separator.'\r?\n/', $matches[1]);
 
-                // Get content
-                $body = substr($body, $firstSeparatorPos+strlen($separator), $lastSeparatorPos - $firstSeparatorPos - strlen($separator));
-
-                // Get parts
-                $parts = explode($newLine.$separator.$newLine, $body);
-
-                foreach ($parts as $part) {
-                    $this->parts[] = new self($part);
-                }
+            foreach ($parts as $part) {
+                $this->parts[] = new self($part);
             }
         }
 

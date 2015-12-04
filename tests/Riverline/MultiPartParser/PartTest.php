@@ -35,7 +35,7 @@ class PartTest extends \PHPUnit_Framework_TestCase
     {
         $content = file_get_contents(__DIR__.'/../../data/no_first_boundary.txt');
 
-        $this->setExpectedException('\LogicException', "Can't find first boundary in content");
+        $this->setExpectedException('\LogicException', "Can't find multi-part content");
         new Part($content);
     }
 
@@ -46,7 +46,7 @@ class PartTest extends \PHPUnit_Framework_TestCase
     {
         $content = file_get_contents(__DIR__.'/../../data/no_last_boundary.txt');
 
-        $this->setExpectedException('\LogicException', "Content is incomplete, missing end boundary");
+        $this->setExpectedException('\LogicException', "Can't find multi-part content");
         new Part($content);
     }
 
