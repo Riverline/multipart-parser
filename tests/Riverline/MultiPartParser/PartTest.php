@@ -80,6 +80,18 @@ class PartTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
+     * Test multi line header
+     */
+    public function testMultiLineHeader()
+    {
+        $content = file_get_contents(__DIR__.'/../../data/simple_multipart.txt');
+
+        $part = new Part($content);
+
+        $this->assertEquals('line one line two with space line three with tab', $part->getHeader('X-Multi-Line'));
+    }
+
+    /**
      * Test filter by name on a simple multipart document
      */
     public function testFilterByName()

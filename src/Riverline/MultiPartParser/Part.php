@@ -50,9 +50,9 @@ class Part
             if (empty($line)) {
                 continue;
             }
-            if (' ' === $line{0} || "\t" === $line{0}) {
+            if (preg_match('/^\h+(.+)/', $line, $matches)) {
                 // Multi line header
-                $currentHeader .= ' '.trim($line);
+                $currentHeader .= ' '.$matches[1];
             } else {
                 if (!empty($currentHeader)) {
                     $headerLines[] = $currentHeader;
@@ -96,7 +96,7 @@ class Part
                 throw new \InvalidArgumentException("Can't find boundary in content type");
             }
 
-            $separator = '--'.preg_quote($boundary);
+            $separator = '--'.preg_quote($boundary, '/');
 
             // Get multi-part content
             if (0 === preg_match('/'.$separator.'\r?\n(.+)\r?\n'.$separator.'--/s', $body, $matches)) {
