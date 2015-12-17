@@ -68,9 +68,16 @@ class Part
         // Parse headers
         $this->headers = array();
         foreach ($headerLines as $line) {
-            list($key, $value) = explode(':', $line, 2);
-            // Decode value
-            $value = mb_decode_mimeheader(trim($value));
+            $lineSplit = explode(':', $line, 2);
+            if (2 === count($lineSplit)) {
+                list($key, $value) = $lineSplit;
+                // Decode value
+                $value = mb_decode_mimeheader(trim($value));
+            } else {
+                // Bogus header
+                $key = $lineSplit[0];
+                $value = '';
+            }
             // Case-insensitive key
             $key = strtolower($key);
             if (!isset($this->headers[$key])) {
@@ -207,8 +214,14 @@ class Part
             // Parse options
             foreach ($parts as $part) {
                 if (!empty($part)) {
-                    list ($key, $value) = explode('=', $part, 2);
-                    $options[trim($key)] = trim($value, ' "');
+                    $partSplit = explode('=', $part, 2);
+                    if (2 === count($partSplit)) {
+                        list ($key, $value) = $partSplit;
+                        $options[trim($key)] = trim($value, ' "');
+                    } else {
+                        // Bogus option
+                        $options[$partSplit[0]] = '';
+                    }
                 }
             }
         }
@@ -246,7 +259,7 @@ class Part
      */
     static public function getHeaderOption($header, $key, $default = null)
     {
-        list(,$options) = self::parseHeaderContent($header);
+        $options = self::getHeaderOptions($header);
 
         if (isset($options[$key])) {
             return $options[$key];
