@@ -68,9 +68,9 @@ class Part
         // Parse headers
         $this->headers = array();
         foreach ($headerLines as $line) {
-            list($key, $value) = explode(': ', $line, 2);
+            list($key, $value) = explode(':', $line, 2);
             // Decode value
-            $value = mb_decode_mimeheader($value);
+            $value = mb_decode_mimeheader(trim($value));
             // Case-insensitive key
             $key = strtolower($key);
             if (!isset($this->headers[$key])) {
