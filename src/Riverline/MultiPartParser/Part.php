@@ -117,7 +117,7 @@ class Part
                 throw new InvalidArgumentException("Can't find multi-part content");
             }
 
-            $body .= fread($stream, $chunkSize);
+            $body = fread($stream, $chunkSize);
         }
 
         // strlen doesn't take into account trailing CRLF since we'll need it below
