@@ -46,7 +46,7 @@ class Part
     protected function parseContentString($content)
     {
         // Split headers and body
-        $splits = preg_split('/(\r?\n){2}/', $content, 2);
+        $splits = preg_split('/(\r\n){2}/', $content, 2);
 
         if (count($splits) < 2) {
             throw new \InvalidArgumentException("Content is not valid, can't split headers and content");
@@ -70,12 +70,12 @@ class Part
             $separator = '--'.preg_quote($boundary, '/');
 
             // Get multi-part content
-            if (0 === preg_match('/'.$separator.'\r?\n(.+)\r?\n'.$separator.'--/s', $body, $matches)) {
+            if (0 === preg_match('/'.$separator.'\r\n(.+)\r\n'.$separator.'--/s', $body, $matches)) {
                 throw new \InvalidArgumentException("Can't find multi-part content");
             }
 
             // Get parts
-            $parts = preg_split('/\r?\n'.$separator.'\r?\n/', $matches[1]);
+            $parts = preg_split('/\r\n'.$separator.'\r\n/', $matches[1]);
 
             foreach ($parts as $part) {
                 $this->parts[] = new self($part);
@@ -121,7 +121,7 @@ class Part
         // Regroup multiline headers
         $currentHeader = '';
         $headerLines = array();
-        foreach (preg_split('/\r?\n/', $headers) as $line) {
+        foreach (preg_split('/\r\n/', $headers) as $line) {
             if (empty($line)) {
                 continue;
             }
