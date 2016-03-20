@@ -1,6 +1,8 @@
 <?php
 
 namespace Riverline\MultiPartParser;
+use InvalidArgumentException;
+use LogicException;
 
 /**
  * Class Part
@@ -9,6 +11,7 @@ namespace Riverline\MultiPartParser;
 class Part
 {
     const CRLF = "\r\n";
+
     /**
      * @var array
      */
@@ -20,6 +23,16 @@ class Part
     protected $body;
 
     /**
+     * @var null|resource
+     */
+    protected $bodyStream;
+
+    /**
+     * @var int
+     */
+    protected $size = 0;
+
+    /**
      * @var Part[]
      */
     protected $parts = array();
@@ -27,108 +40,195 @@ class Part
     /**
      * @var bool
      */
-    protected $multipart = false;
+    protected $multipart;
 
     /**
-     * MultiPart constructor.
-     * @param string $content
-     * @throws \InvalidArgumentException
+     * @var string
      */
-    public function __construct($content)
-    {
-        $this->parseContentString($content);
+    protected $boundary;
+
+    /**
+     * MultiPart constructor
+     *
+     * @deprecated Use `::fromString()` and `::fromStream()` instead, constructor will become protected in future
+     *
+     * @param string $content
+     *
+     * @throws InvalidArgumentException
+     */
+    public function __construct($content = null) {
+        if ($content !== null) {
+            $this->parseContentStream(fopen('php://memory', 'r'), 1024, $content);
+        }
     }
 
     /**
-     * Parse content string
-     * @param string $content
-     * @throws \InvalidArgumentException
+     * MultiPart constructor from string input
+     *
+     * @param string $content Request content as string
+     *
+     * @return Part
+     *
+     * @throws InvalidArgumentException
      */
-    protected function parseContentString($content)
+    static public function fromString($content)
     {
-        // Split headers and body
-        $splits = explode(self::CRLF.self::CRLF, $content, 2);
+        $object = new static();
+        return $object->parseContentStream(fopen('php://memory', 'r'), 1024, $content);
+    }
 
-        if (count($splits) < 2) {
-            throw new \InvalidArgumentException("Content is not valid, can't split headers and content");
+    /**
+     * MultiPart constructor from stream input
+     *
+     * @param string|resource $stream    Request content as stream
+     * @param int             $chunkSize Stream content is fetched in chunks, this parameter defines
+     *                                   size of chunk in bytes, bigger value means higher memory usage
+     * @param string          $content   Content prefix; if main stream contains body only (like
+     *                                   `fopen('php://input', 'br')`), here you can specify headers with
+     *                                   trailing `\r\n\r\n` (`Content-Type` is the only header required)
+     *
+     * @throws InvalidArgumentException
+     */
+    public function fromStream($stream, $chunkSize = 1024, $content = '')
+    {
+        $object = new static();
+        return $object->parseContentStream($stream, $chunkSize, $content);
+    }
+
+    /**
+     * Parse content stream
+     *
+     * @param resource $stream
+     * @param int      $chunkSize
+     * @param string   $content
+     *
+     * @return Part
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function parseContentStream($stream, $chunkSize = 1024, &$content = '')
+    {
+        $body = $this->parseContentStreamHeader($stream, $chunkSize, $content);
+
+        if (!$this->multipart) {
+            $this->body = $body.stream_get_contents($stream);
+            return $this;
+        }
+        // Get multi-part content
+        while (false === ($startBoundaryOccurrence = strpos($body, '--'.$this->boundary.self::CRLF))) {
+            if (feof($stream)) {
+                throw new InvalidArgumentException("Can't find multi-part content");
+            }
+
+            $body .= fread($stream, $chunkSize);
         }
 
-        list ($headers, $body) = $splits;
+        // strlen doesn't take into account trailing CRLF since we'll need it below
+        $body = substr($body, $startBoundaryOccurrence + strlen('--'.$this->boundary));
+
+        while (0 === strpos($body, self::CRLF)) {
+            $part = new static();
+            $part->parseContentStreamHeader($stream, $chunkSize, $body);
+            $body = $part->parseContentStreamBody($stream, $chunkSize, $body, $this->boundary);
+            $this->parts[] = $part;
+        }
+
+        if (0 !== strpos($body, '--')) {
+            throw new InvalidArgumentException(
+                "Unexpected stream end, --$this->boundary-- expected, got: --$this->boundary".substr($body, 0, 2)
+            );
+        }
+        return $this;
+    }
+
+    /**
+     * @param resource $stream
+     * @param int      $chunkSize
+     * @param string   $content
+     *
+     * @return string Remainder from stream that appeared after headers
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function parseContentStreamHeader($stream, $chunkSize, $content = '')
+    {
+        while (false === strpos($content, self::CRLF.self::CRLF)) {
+            if (feof($stream)) {
+                throw new InvalidArgumentException("Content is not valid, can't split headers and content");
+            }
+            $content .= fread($stream, $chunkSize);
+        }
+
+        list($headers, $remainder) = explode(self::CRLF.self::CRLF, $content, 2);
 
         $this->parseHeaders($headers);
 
-        // Is MultiPart ?
-        $contentType = $this->getHeader('Content-Type');
-        if ('multipart' === strstr(static::getHeaderValue($contentType), '/', true)) {
-            // MultiPart !
-            $this->multipart = true;
-            $boundary = static::getHeaderOption($contentType, 'boundary');
+        return $remainder;
+    }
 
-            if (null === $boundary) {
-                throw new \InvalidArgumentException("Can't find boundary in content type");
+    /**
+     * @param resource $stream
+     * @param int      $chunkSize
+     * @param string   $content
+     * @param string   $boundary
+     *
+     * @return string Remainder from stream that appeared after parsed body and doesn't relate to
+     *                current part
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function parseContentStreamBody($stream, $chunkSize, $content, $boundary)
+    {
+        $this->bodyStream = fopen('php://temp', 'bw+');
+        while (false === strpos($content, self::CRLF.'--'.$boundary)) {
+            if (feof($stream)) {
+                throw new InvalidArgumentException("Can't find multi-part content");
             }
-
-            $multipart_start = '--'.$boundary.self::CRLF;
-            $separator = self::CRLF.'--'.$boundary.self::CRLF;
-            $multipart_end = self::CRLF.'--'.$boundary.'--';
-
-            // Get multi-part content
-            $first_occurrence = strpos($body, $multipart_start);
-            $last_occurrence = strpos(
-                $body,
-                $multipart_end,
-                $first_occurrence + strlen($multipart_start)
-            );
-            if (false === $first_occurrence || false === $last_occurrence) {
-                throw new \InvalidArgumentException("Can't find multi-part content");
-            }
-
-            // Get parts
-            $multipart_content = substr(
-                $body,
-                $first_occurrence + strlen($multipart_start),
-                $last_occurrence - strlen($body)
-            );
-            $parts = explode($separator, $multipart_content);
-
-            foreach ($parts as $part) {
-                $this->parts[] = new static($part);
-            }
-        } else {
-            // Decode
-            $encoding = strtolower($this->getHeader('Content-Transfer-Encoding'));
-            switch ($encoding) {
-                case 'base64':
-                    $body = base64_decode($body);
-                    break;
-                case 'quoted-printable':
-                    $body = quoted_printable_decode($body);
-                    break;
-            }
-
-            // Convert to UTF-8 ( Not if binary or 7bit ( aka Ascii ) )
-            if (!in_array($encoding, array('binary', '7bit'))) {
-                // Charset
-                $charset = static::getHeaderOption($contentType, 'charset');
-                if (null === $charset) {
-                    // Try to detect
-                    $charset = mb_detect_encoding($body) ?: 'utf-8';
-                }
-
-                // Only convert if not UTF-8
-                if ('utf-8' !== strtolower($charset)) {
-                    $body = mb_convert_encoding($body, 'utf-8', $charset);
-                }
-            }
-
-            $this->body = $body;
+            fwrite($this->bodyStream, $content);
+            $this->size += strlen($content);
+            $content = fread($stream, $chunkSize);
         }
+
+        list($body, $remainder) = explode(self::CRLF.'--'.$boundary, $content, 2);
+
+        $this->size += strlen($content);
+        fwrite($this->bodyStream, $body);
+        // Decode
+        $encoding = strtolower($this->getHeader('Content-Transfer-Encoding'));
+        switch ($encoding) {
+            case 'base64':
+                $body = base64_decode($body);
+                break;
+            case 'quoted-printable':
+                $body = quoted_printable_decode($body);
+                break;
+        }
+
+        // Convert to UTF-8 ( Not if binary or 7bit ( aka Ascii ) )
+        if (!in_array($encoding, array('binary', '7bit'))) {
+            // Charset
+            $charset = static::getHeaderOption($this->getHeader('Content-Type'), 'charset');
+            if (null === $charset) {
+                // Try to detect
+                $charset = mb_detect_encoding($body) ?: 'utf-8';
+            }
+
+            // Only convert if not UTF-8
+            if ('utf-8' !== strtolower($charset)) {
+                $this->body = mb_convert_encoding($body, 'utf-8', $charset);
+            }
+        }
+        rewind($this->bodyStream);
+
+        return $remainder;
     }
 
     /**
      * @param string $headers
      *
      * @return bool
+     *
+     * @throws InvalidArgumentException
      */
     protected function parseHeaders($headers)
     {
@@ -178,6 +278,18 @@ class Part
                 $this->headers[$key][] = $value;
             }
         }
+
+        $contentType = $this->getHeader('Content-Type');
+        $this->multipart = 0 === strpos(static::getHeaderValue($contentType), 'multipart/');
+
+        // If multipart - determine boundary
+        if ($this->multipart) {
+            $this->boundary = static::getHeaderOption($contentType, 'boundary');
+
+            if (null === $this->boundary) {
+                throw new InvalidArgumentException("Can't find boundary in content type");
+            }
+        }
     }
 
     /**
@@ -190,12 +302,17 @@ class Part
 
     /**
      * @return string
-     * @throws \LogicException if is multipart
+     *
+     * @throws LogicException if is multipart
      */
     public function getBody()
     {
         if ($this->isMultiPart()) {
-            throw new \LogicException("MultiPart content, there aren't body");
+            throw new LogicException("MultiPart content, there aren't body");
+        } elseif (is_resource($this->bodyStream)) {
+            $body = stream_get_contents($this->bodyStream);
+            rewind($this->bodyStream);
+            return $body;
         } else {
             return $this->body;
         }
@@ -212,6 +329,7 @@ class Part
     /**
      * @param string $key
      * @param mixed  $default
+     *
      * @return mixed
      */
     public function getHeader($key, $default = null)
@@ -227,6 +345,7 @@ class Part
 
     /**
      * @param string $content
+     *
      * @return array
      */
     static protected function parseHeaderContent($content)
@@ -253,6 +372,7 @@ class Part
 
     /**
      * @param string $header
+     *
      * @return string
      */
     static public function getHeaderValue($header)
@@ -264,6 +384,7 @@ class Part
 
     /**
      * @param string $header
+     *
      * @return string
      */
     static public function getHeaderOptions($header)
@@ -277,6 +398,7 @@ class Part
      * @param string $header
      * @param string $key
      * @param mixed  $default
+     *
      * @return mixed
      */
     static public function getHeaderOption($header, $key, $default = null)
@@ -324,30 +446,41 @@ class Part
     }
 
     /**
+     * @return int
+     */
+    public function getSize()
+    {
+        return $this->size;
+    }
+
+    /**
      * @return bool
      */
     public function isFile()
     {
-        return !is_null($this->getFileName());
+        return (bool)$this->getFileName();
     }
 
     /**
      * @return Part[]
-     * @throws \LogicException if is not multipart
+     *
+     * @throws LogicException if is not multipart
      */
     public function getParts()
     {
         if ($this->isMultiPart()) {
             return $this->parts;
         } else {
-            throw new \LogicException("Not MultiPart content, there aren't any parts");
+            throw new LogicException("Not MultiPart content, there aren't any parts");
         }
     }
 
     /**
      * @param string $name
+     *
      * @return Part[]
-     * @throws \LogicException if is not multipart
+     *
+     * @throws LogicException if is not multipart
      */
     public function getPartsByName($name)
     {
