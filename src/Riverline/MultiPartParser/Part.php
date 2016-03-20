@@ -18,11 +18,6 @@ class Part
     protected $headers;
 
     /**
-     * @var string
-     */
-    protected $body;
-
-    /**
      * @var null|resource
      */
     protected $bodyStream;
@@ -111,7 +106,9 @@ class Part
         $body = $this->parseContentStreamHeader($stream, $chunkSize, $content);
 
         if (!$this->multipart) {
-            $this->body = $body.stream_get_contents($stream);
+            $this->bodyStream = fopen('php://temp', 'bw+');
+            fwrite($this->bodyStream, $body.stream_get_contents($stream));
+            rewind($this->bodyStream);
             return $this;
         }
         // Get multi-part content
@@ -193,6 +190,7 @@ class Part
 
         $this->size += strlen($content);
         fwrite($this->bodyStream, $body);
+
         // Decode
         $encoding = strtolower($this->getHeader('Content-Transfer-Encoding'));
         switch ($encoding) {
@@ -215,9 +213,14 @@ class Part
 
             // Only convert if not UTF-8
             if ('utf-8' !== strtolower($charset)) {
-                $this->body = mb_convert_encoding($body, 'utf-8', $charset);
+                $body = mb_convert_encoding($body, 'utf-8', $charset);
+                $this->size = strlen($body);
+                ftruncate($this->bodyStream, 0);
+                rewind($this->bodyStream);
+                fwrite($this->bodyStream, $body);
             }
         }
+
         rewind($this->bodyStream);
 
         return $remainder;
@@ -309,12 +312,24 @@ class Part
     {
         if ($this->isMultiPart()) {
             throw new LogicException("MultiPart content, there aren't body");
-        } elseif (is_resource($this->bodyStream)) {
-            $body = stream_get_contents($this->bodyStream);
-            rewind($this->bodyStream);
-            return $body;
         } else {
-            return $this->body;
+            rewind($this->bodyStream);
+            return stream_get_contents($this->bodyStream);
+        }
+    }
+
+    /**
+     * @return resource
+     *
+     * @throws LogicException if is multipart
+     */
+    public function getBodyStream()
+    {
+        if ($this->isMultiPart()) {
+            throw new LogicException("MultiPart content, there aren't body stream");
+        } else {
+            rewind($this->bodyStream);
+            return $this->bodyStream;
         }
     }
 
