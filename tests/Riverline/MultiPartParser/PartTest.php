@@ -59,8 +59,8 @@ class PartTest extends \PHPUnit_Framework_TestCase
 
         $part = new Part($content);
 
-        $this->assertFalse($part->isMultiPart());
-        $this->assertEquals('bar', $part->getBody());
+        self::assertFalse($part->isMultiPart());
+        self::assertEquals('bar', $part->getBody());
     }
 
     /**
@@ -72,8 +72,8 @@ class PartTest extends \PHPUnit_Framework_TestCase
 
         $part = new Part($content);
 
-        $this->assertTrue($part->isMultiPart());
-        $this->assertCount(2, $part->getParts());
+        self::assertTrue($part->isMultiPart());
+        self::assertCount(2, $part->getParts());
 
         $this->setExpectedException('\LogicException', "MultiPart content, there aren't body");
         $part->getBody();
@@ -88,7 +88,7 @@ class PartTest extends \PHPUnit_Framework_TestCase
 
         $part = new Part($content);
 
-        $this->assertEquals('line one line two with space line three with tab', $part->getHeader('X-Multi-Line'));
+        self::assertEquals('line one line two with space line three with tab', $part->getHeader('X-Multi-Line'));
     }
 
     /**
@@ -100,7 +100,7 @@ class PartTest extends \PHPUnit_Framework_TestCase
 
         $part = new Part($content);
 
-        $this->assertCount(1, $part->getPartsByName('foo'));
+        self::assertCount(1, $part->getPartsByName('foo'));
     }
 
     /**
@@ -114,8 +114,8 @@ class PartTest extends \PHPUnit_Framework_TestCase
         $parts = $part->getParts();
         $header = $parts[1]->getHeader('Content-Disposition');
 
-        $this->assertEquals('form-data', Part::getHeaderValue($header));
-        $this->assertEquals('foo', Part::getHeaderOption($header, 'name'));
+        self::assertEquals('form-data', Part::getHeaderValue($header));
+        self::assertEquals('foo', Part::getHeaderOption($header, 'name'));
     }
 
     /**
@@ -128,8 +128,8 @@ class PartTest extends \PHPUnit_Framework_TestCase
         $part = new Part($content);
         $parts = $part->getParts();
 
-        $this->assertTrue($parts[0]->isFile());
-        $this->assertEquals('a.png', $parts[0]->getFileName());
+        self::assertTrue($parts[0]->isFile());
+        self::assertEquals('a.png', $parts[0]->getFileName());
     }
 
 
@@ -142,12 +142,12 @@ class PartTest extends \PHPUnit_Framework_TestCase
 
         $part = new Part($content);
 
-        $this->assertTrue($part->isMultiPart());
+        self::assertTrue($part->isMultiPart());
 
         /** @var Part[] $parts */
         $parts = $part->getParts();
 
-        $this->assertTrue($parts[0]->isMultiPart());
+        self::assertTrue($parts[0]->isMultiPart());
     }
 
     /**
@@ -159,17 +159,17 @@ class PartTest extends \PHPUnit_Framework_TestCase
 
         $part = new Part($content);
 
-        $this->assertTrue($part->isMultiPart());
+        self::assertTrue($part->isMultiPart());
 
         $this->setExpectedException('\LogicException', "MultiPart content, there aren't body");
         $part->getBody();
 
-        $this->assertEquals('This is thé subject', $part->getHeader('Subject'));
+        self::assertEquals('This is thé subject', $part->getHeader('Subject'));
 
         /** @var Part[] $parts */
         $parts = $part->getParts();
 
-        $this->assertEquals('This is the content', $parts[0]->getBody());
-        $this->assertEquals('This is the côntént', $parts[1]->getBody());
+        self::assertEquals('This is the content', $parts[0]->getBody());
+        self::assertEquals('This is the côntént', $parts[1]->getBody());
     }
 }
