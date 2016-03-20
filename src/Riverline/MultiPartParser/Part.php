@@ -35,6 +35,16 @@ class Part
      */
     public function __construct($content)
     {
+        $this->parseContentString($content);
+    }
+
+    /**
+     * Parse content string
+     * @param string $content
+     * @throws \InvalidArgumentException
+     */
+    protected function parseContentString($content)
+    {
         // Split headers and body
         $splits = preg_split('/(\r?\n){2}/', $content, 2);
 
@@ -44,52 +54,7 @@ class Part
 
         list ($headers, $body) = $splits;
 
-        // Regroup multiline headers
-        $currentHeader = '';
-        $headerLines = array();
-        foreach (preg_split('/\r?\n/', $headers) as $line) {
-            if (empty($line)) {
-                continue;
-            }
-            if (preg_match('/^\h+(.+)/', $line, $matches)) {
-                // Multi line header
-                $currentHeader .= ' '.$matches[1];
-            } else {
-                if (!empty($currentHeader)) {
-                    $headerLines[] = $currentHeader;
-                }
-                $currentHeader = trim($line);
-            }
-        }
-
-        if (!empty($currentHeader)) {
-            $headerLines[] = $currentHeader;
-        }
-
-        // Parse headers
-        $this->headers = array();
-        foreach ($headerLines as $line) {
-            $lineSplit = explode(':', $line, 2);
-            if (2 === count($lineSplit)) {
-                list($key, $value) = $lineSplit;
-                // Decode value
-                $value = mb_decode_mimeheader(trim($value));
-            } else {
-                // Bogus header
-                $key = $lineSplit[0];
-                $value = '';
-            }
-            // Case-insensitive key
-            $key = strtolower($key);
-            if (!isset($this->headers[$key])) {
-                $this->headers[$key] = $value;
-            } else {
-                if (!is_array($this->headers[$key])) {
-                    $this->headers[$key] = (array)$this->headers[$key];
-                }
-                $this->headers[$key][] = $value;
-            }
-        }
+        $this->parseHeaders($headers);
 
         // Is MultiPart ?
         $contentType = $this->getHeader('Content-Type');
@@ -143,6 +108,61 @@ class Part
             }
 
             $this->body = $body;
+        }
+    }
+
+    /**
+     * @param string $headers
+     *
+     * @return bool
+     */
+    protected function parseHeaders($headers)
+    {
+        // Regroup multiline headers
+        $currentHeader = '';
+        $headerLines = array();
+        foreach (preg_split('/\r?\n/', $headers) as $line) {
+            if (empty($line)) {
+                continue;
+            }
+            if (preg_match('/^\h+(.+)/', $line, $matches)) {
+                // Multi line header
+                $currentHeader .= ' '.$matches[1];
+            } else {
+                if (!empty($currentHeader)) {
+                    $headerLines[] = $currentHeader;
+                }
+                $currentHeader = trim($line);
+            }
+        }
+
+        if (!empty($currentHeader)) {
+            $headerLines[] = $currentHeader;
+        }
+
+        // Parse headers
+        $this->headers = array();
+        foreach ($headerLines as $line) {
+            $lineSplit = explode(':', $line, 2);
+            if (2 === count($lineSplit)) {
+                list($key, $value) = $lineSplit;
+                // Decode value
+                $value = mb_decode_mimeheader(trim($value));
+            } else {
+                // Bogus header
+                $key = $lineSplit[0];
+                $value = '';
+            }
+            // Case-insensitive key
+            $key = strtolower($key);
+            if (!isset($this->headers[$key])) {
+                $this->headers[$key] = $value;
+            } else {
+                if (!is_array($this->headers[$key])) {
+                    $this->headers[$key] = (array)$this->headers[$key];
+                }
+                $this->headers[$key][] = $value;
+            }
         }
     }
 
