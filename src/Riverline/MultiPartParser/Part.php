@@ -112,6 +112,7 @@ class Part
             return $this;
         }
         // Get multi-part content
+        // @todo boundary might appear on boundary, we need to handle this
         while (false === ($startBoundaryOccurrence = strpos($body, '--'.$this->boundary.self::CRLF))) {
             if (feof($stream)) {
                 throw new InvalidArgumentException("Can't find multi-part content");
@@ -164,6 +165,8 @@ class Part
     }
 
     /**
+     * @todo boundary might appear on boundary, we need to handle this
+     *
      * @param resource $stream
      * @param int      $chunkSize
      * @param string   $content
