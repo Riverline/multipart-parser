@@ -58,10 +58,10 @@ class Part
 
         // Is MultiPart ?
         $contentType = $this->getHeader('Content-Type');
-        if ('multipart' === strstr(self::getHeaderValue($contentType), '/', true)) {
+        if ('multipart' === strstr(static::getHeaderValue($contentType), '/', true)) {
             // MultiPart !
             $this->multipart = true;
-            $boundary = self::getHeaderOption($contentType, 'boundary');
+            $boundary = static::getHeaderOption($contentType, 'boundary');
 
             if (null === $boundary) {
                 throw new \InvalidArgumentException("Can't find boundary in content type");
@@ -78,7 +78,7 @@ class Part
             $parts = preg_split('/\r\n'.$separator.'\r\n/', $matches[1]);
 
             foreach ($parts as $part) {
-                $this->parts[] = new self($part);
+                $this->parts[] = new static($part);
             }
         } else {
             // Decode
@@ -95,7 +95,7 @@ class Part
             // Convert to UTF-8 ( Not if binary or 7bit ( aka Ascii ) )
             if (!in_array($encoding, array('binary', '7bit'))) {
                 // Charset
-                $charset = self::getHeaderOption($contentType, 'charset');
+                $charset = static::getHeaderOption($contentType, 'charset');
                 if (null === $charset) {
                     // Try to detect
                     $charset = mb_detect_encoding($body) ?: 'utf-8';
@@ -243,7 +243,7 @@ class Part
      */
     static public function getHeaderValue($header)
     {
-        list($value) = self::parseHeaderContent($header);
+        list($value) = static::parseHeaderContent($header);
 
         return $value;
     }
@@ -254,7 +254,7 @@ class Part
      */
     static public function getHeaderOptions($header)
     {
-        list(,$options) = self::parseHeaderContent($header);
+        list(,$options) = static::parseHeaderContent($header);
 
         return $options;
     }
@@ -267,7 +267,7 @@ class Part
      */
     static public function getHeaderOption($header, $key, $default = null)
     {
-        $options = self::getHeaderOptions($header);
+        $options = static::getHeaderOptions($header);
 
         if (isset($options[$key])) {
             return $options[$key];
@@ -284,7 +284,7 @@ class Part
         // Find Content-Disposition
         $contentType = $this->getHeader('Content-Type');
 
-        return self::getHeaderValue($contentType) ?: 'application/octet-stream';
+        return static::getHeaderValue($contentType) ?: 'application/octet-stream';
     }
 
     /**
@@ -295,7 +295,7 @@ class Part
         // Find Content-Disposition
         $contentDisposition = $this->getHeader('Content-Disposition');
 
-        return self::getHeaderOption($contentDisposition, 'name');
+        return static::getHeaderOption($contentDisposition, 'name');
     }
 
     /**
@@ -306,7 +306,7 @@ class Part
         // Find Content-Disposition
         $contentDisposition = $this->getHeader('Content-Disposition');
 
-        return self::getHeaderOption($contentDisposition, 'filename');
+        return static::getHeaderOption($contentDisposition, 'filename');
     }
 
     /**
