@@ -8,6 +8,7 @@ namespace Riverline\MultiPartParser;
  */
 class Part
 {
+    const CRLF = "\r\n";
     /**
      * @var array
      */
@@ -46,7 +47,7 @@ class Part
     protected function parseContentString($content)
     {
         // Split headers and body
-        $splits = preg_split('/(\r\n){2}/', $content, 2);
+        $splits = explode(self::CRLF.self::CRLF, $content, 2);
 
         if (count($splits) < 2) {
             throw new \InvalidArgumentException("Content is not valid, can't split headers and content");
@@ -67,15 +68,28 @@ class Part
                 throw new \InvalidArgumentException("Can't find boundary in content type");
             }
 
-            $separator = '--'.preg_quote($boundary, '/');
+            $multipart_start = '--'.$boundary.self::CRLF;
+            $separator = self::CRLF.'--'.$boundary.self::CRLF;
+            $multipart_end = self::CRLF.'--'.$boundary.'--';
 
             // Get multi-part content
-            if (0 === preg_match('/'.$separator.'\r\n(.+)\r\n'.$separator.'--/s', $body, $matches)) {
+            $first_occurrence = strpos($body, $multipart_start);
+            $last_occurrence = strpos(
+                $body,
+                $multipart_end,
+                $first_occurrence + strlen($multipart_start)
+            );
+            if (false === $first_occurrence || false === $last_occurrence) {
                 throw new \InvalidArgumentException("Can't find multi-part content");
             }
 
             // Get parts
-            $parts = preg_split('/\r\n'.$separator.'\r\n/', $matches[1]);
+            $multipart_content = substr(
+                $body,
+                $first_occurrence + strlen($multipart_start),
+                $last_occurrence - strlen($body)
+            );
+            $parts = explode($separator, $multipart_content);
 
             foreach ($parts as $part) {
                 $this->parts[] = new static($part);
@@ -121,7 +135,7 @@ class Part
         // Regroup multiline headers
         $currentHeader = '';
         $headerLines = array();
-        foreach (preg_split('/\r\n/', $headers) as $line) {
+        foreach (explode(self::CRLF, $headers) as $line) {
             if (empty($line)) {
                 continue;
             }
