@@ -85,7 +85,7 @@ class Part
                 $this->headers[$key] = $value;
             } else {
                 if (!is_array($this->headers[$key])) {
-                    $this->headers[$key] = ((array) $this->headers[$key]);
+                    $this->headers[$key] = (array)$this->headers[$key];
                 }
                 $this->headers[$key][] = $value;
             }
@@ -93,9 +93,7 @@ class Part
 
         // Is MultiPart ?
         $contentType = $this->getHeader('Content-Type');
-        if (null !== $contentType
-            && 'multipart' === strstr(self::getHeaderValue($contentType), '/', true)
-        ) {
+        if ('multipart' === strstr(self::getHeaderValue($contentType), '/', true)) {
             // MultiPart !
             $this->multipart = true;
             $boundary = self::getHeaderOption($contentType, 'boundary');
@@ -117,10 +115,7 @@ class Part
             foreach ($parts as $part) {
                 $this->parts[] = new self($part);
             }
-        }
-
-        // Process Body if not Multipart
-        if (!$this->isMultiPart()) {
+        } else {
             // Decode
             $encoding = strtolower($this->getHeader('Content-Transfer-Encoding'));
             switch ($encoding) {
@@ -138,13 +133,7 @@ class Part
                 $charset = self::getHeaderOption($contentType, 'charset');
                 if (null === $charset) {
                     // Try to detect
-                    $detectedCharset = mb_detect_encoding($body);
-                    if (false !== $detectedCharset) {
-                        $charset = $detectedCharset;
-                    } else {
-                        // Default
-                        $charset = 'utf-8';
-                    }
+                    $charset = mb_detect_encoding($body) ?: 'utf-8';
                 }
 
                 // Only convert if not UTF-8
@@ -211,18 +200,16 @@ class Part
         $parts = explode(';', $content);
         $headerValue = array_shift($parts);
         $options = array();
-        if (count($parts) > 0) {
-            // Parse options
-            foreach ($parts as $part) {
-                if (!empty($part)) {
-                    $partSplit = explode('=', $part, 2);
-                    if (2 === count($partSplit)) {
-                        list ($key, $value) = $partSplit;
-                        $options[trim($key)] = trim($value, ' "');
-                    } else {
-                        // Bogus option
-                        $options[$partSplit[0]] = '';
-                    }
+        // Parse options
+        foreach ($parts as $part) {
+            if (!empty($part)) {
+                $partSplit = explode('=', $part, 2);
+                if (2 === count($partSplit)) {
+                    list ($key, $value) = $partSplit;
+                    $options[trim($key)] = trim($value, ' "');
+                } else {
+                    // Bogus option
+                    $options[$partSplit[0]] = '';
                 }
             }
         }
@@ -276,11 +263,8 @@ class Part
     {
         // Find Content-Disposition
         $contentType = $this->getHeader('Content-Type');
-        if (null !== $contentType) {
-            return self::getHeaderValue($contentType);
-        }
 
-        return 'application/octet-stream';
+        return self::getHeaderValue($contentType) ?: 'application/octet-stream';
     }
 
     /**
@@ -290,11 +274,8 @@ class Part
     {
         // Find Content-Disposition
         $contentDisposition = $this->getHeader('Content-Disposition');
-        if (null !== $contentDisposition) {
-            return self::getHeaderOption($contentDisposition, 'name');
-        }
 
-        return null;
+        return self::getHeaderOption($contentDisposition, 'name');
     }
 
     /**
@@ -304,11 +285,8 @@ class Part
     {
         // Find Content-Disposition
         $contentDisposition = $this->getHeader('Content-Disposition');
-        if (null !== $contentDisposition) {
-            return self::getHeaderOption($contentDisposition, 'filename');
-        }
 
-        return null;
+        return self::getHeaderOption($contentDisposition, 'filename');
     }
 
     /**
@@ -339,18 +317,14 @@ class Part
      */
     public function getPartsByName($name)
     {
-        if ($this->isMultiPart()) {
-            $parts = array();
+        $parts = array();
 
-            foreach ($this->parts as $part) {
-                if ($part->getName() === $name) {
-                    $parts[] = $part;
-                }
+        foreach ($this->getParts() as $part) {
+            if ($part->getName() === $name) {
+                $parts[] = $part;
             }
-
-            return $parts;
-        } else {
-            throw new \LogicException("Not MultiPart content, there aren't any parts");
         }
+
+        return $parts;
     }
 }
