@@ -31,6 +31,7 @@ class Part
     /**
      * MultiPart constructor.
      * @param string $content
+     * @throws \InvalidArgumentException
      */
     public function __construct($content)
     {
@@ -166,7 +167,7 @@ class Part
 
     /**
      * @return string
-     * @throw \LogicException if is multipart
+     * @throws \LogicException if is multipart
      */
     public function getBody()
     {
@@ -320,7 +321,7 @@ class Part
 
     /**
      * @return Part[]
-     * @throw \LogicException if is not multipart
+     * @throws \LogicException if is not multipart
      */
     public function getParts()
     {
@@ -334,7 +335,7 @@ class Part
     /**
      * @param string $name
      * @return Part[]
-     * @throw \LogicException if is not multipart
+     * @throws \LogicException if is not multipart
      */
     public function getPartsByName($name)
     {
