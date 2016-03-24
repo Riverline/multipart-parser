@@ -104,6 +104,20 @@ class PartTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
+     * Test correct part content (e.g. \r of separator not part of body)
+     */
+    public function testPartContent()
+    {
+        $content = file_get_contents(__DIR__.'/../../data/simple_multipart.txt');
+
+        $part = new Part($content);
+
+        $foo = $part->getPartsByName('foo');
+
+        self::assertEquals("bar", $foo[0]->getBody());
+    }
+
+    /**
      * Test header helpers
      */
     public function testHeaderHelpers()

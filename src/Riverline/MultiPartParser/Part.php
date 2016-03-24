@@ -107,7 +107,7 @@ class Part
             $separator = '--'.preg_quote($boundary, '/');
 
             // Get multi-part content
-            if (0 === preg_match('/'.$separator.'\r?\n(.+)\r?\n'.$separator.'--/s', $body, $matches)) {
+            if (0 === preg_match('/'.$separator.'\r?\n(.+?)\r?\n'.$separator.'--/s', $body, $matches)) {
                 throw new \InvalidArgumentException("Can't find multi-part content");
             }
 
