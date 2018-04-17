@@ -230,7 +230,7 @@ class Part
 
     /**
      * @param string $header
-     * @return string
+     * @return array
      */
     static public function getHeaderOptions($header)
     {
