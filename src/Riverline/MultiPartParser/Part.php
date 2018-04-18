@@ -206,6 +206,13 @@ class Part
                 $partSplit = explode('=', $part, 2);
                 if (2 === count($partSplit)) {
                     list ($key, $value) = $partSplit;
+                    if ('*' === substr($key, -1)) {
+                        // RFC 5987
+                        $key = substr($key, 0, -1);
+                        if (preg_match("/(?P<charset>[\w!#$%&+^_`{}~-]+)'(?P<language>[\w-]*)'(?P<value>.*)$/", $value, $matches)) {
+                            $value = mb_convert_encoding(rawurldecode($matches['value']), 'utf-8', $matches['charset']);
+                        }
+                    }
                     $options[trim($key)] = trim($value, ' "');
                 } else {
                     // Bogus option
