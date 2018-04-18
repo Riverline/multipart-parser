@@ -85,7 +85,7 @@ class Part
                 $this->headers[$key] = $value;
             } else {
                 if (!is_array($this->headers[$key])) {
-                    $this->headers[$key] = (array)$this->headers[$key];
+                    $this->headers[$key] = (array) $this->headers[$key];
                 }
                 $this->headers[$key][] = $value;
             }
@@ -234,7 +234,7 @@ class Part
      */
     static public function getHeaderOptions($header)
     {
-        list(,$options) = self::parseHeaderContent($header);
+        list(, $options) = self::parseHeaderContent($header);
 
         return $options;
     }
