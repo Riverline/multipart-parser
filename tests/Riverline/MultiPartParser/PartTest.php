@@ -73,7 +73,7 @@ class PartTest extends \PHPUnit_Framework_TestCase
         $part = new Part($content);
 
         self::assertTrue($part->isMultiPart());
-        self::assertCount(2, $part->getParts());
+        self::assertCount(3, $part->getParts());
 
         $this->setExpectedException('\LogicException', "MultiPart content, there aren't body");
         $part->getBody();
@@ -115,6 +115,21 @@ class PartTest extends \PHPUnit_Framework_TestCase
         $foo = $part->getPartsByName('foo');
 
         self::assertEquals("bar", $foo[0]->getBody());
+    }
+
+    /**
+     * Test RFC 5987 encoded header
+     */
+    public function testRFC5987Header()
+    {
+        $content = file_get_contents(__DIR__.'/../../data/simple_multipart.txt');
+
+        $part = new Part($content);
+        $parts = $part->getParts();
+        $header = $parts[2]->getHeader('Content-Disposition');
+
+        self::assertEquals('£ rates', Part::getHeaderOption($header, 'text1'));
+        self::assertEquals('£ and € rates', Part::getHeaderOption($header, 'text2'));
     }
 
     /**
