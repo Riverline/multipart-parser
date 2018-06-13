@@ -105,9 +105,19 @@ class Part
             $separator = '--'.preg_quote($boundary, '/');
 
             // Get multi-part content
-            if (0 === preg_match('/'.$separator.'\r?\n(.+?)\r?\n'.$separator.'--/s', $body, $matches)) {
+            /*if (0 === preg_match('/'.$separator.'\r?\n(.+?)\r?\n'.$separator.'--/s', $body, $matches)) {
                 throw new \InvalidArgumentException("Can't find multi-part content");
-            }
+            }*/
+            /**
+            * Above code doesn't seem to work for large files (images..) as preg_match
+            * returns FALSE
+            */
+            
+            // Please review this code,
+            $all_between_separators = strstr($body, '--'.$boundary);
+            $all_between_separators = substr($body, strlen('--'.$boundary));
+            $all_between_separators = substr($all_between_separators, 0, -strlen('----'.$boundary.'--')); // It works but don't ask me why. Why remove 6 more characters?
+            $matches[1] = $all_between_separators;
 
             // Get parts
             $parts = preg_split('/\r?\n'.$separator.'\r?\n/', $matches[1]);
