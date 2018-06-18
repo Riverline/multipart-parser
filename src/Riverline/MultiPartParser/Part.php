@@ -115,7 +115,7 @@ class Part
             
             // Please review this code,
             $all_between_separators = strstr($body, '--'.$boundary);
-            $all_between_separators = substr($body, strlen('--'.$boundary));
+            $all_between_separators = substr($all_between_separators, strlen('--'.$boundary));
             $all_between_separators = substr($all_between_separators, 0, -strlen('----'.$boundary.'--')); // It works but don't ask me why. Why remove 6 more characters?
             $matches[1] = $all_between_separators;
 
