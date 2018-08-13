@@ -122,7 +122,13 @@ class PartTest extends \PHPUnit_Framework_TestCase
      */
     public function testBigMultipart()
     {
-        $content = file_get_contents(__DIR__.'/../../data/big_multipart.txt');
+        $big_data = array_fill(0, 1000 * 500, "0");
+        $big_data = implode(" ", $big_data);
+        $big_data = str_split($big_data, 80);
+        $big_data = implode("\r\n", $big_data);
+
+        $content = file_get_contents(__DIR__ . '/../../data/big_multipart.txt');
+        $content = str_replace("{{big_data}}", $big_data, $content);
 
         $part = new Part($content);
 

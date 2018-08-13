@@ -105,7 +105,7 @@ class Part
             $separator = '--'.preg_quote($boundary, '/');
 
             $old_backtrack_limit = ini_get("pcre.backtrack_limit");
-            ini_set("pcre.backtrack_limit", strlen($content));
+            ini_set("pcre.backtrack_limit", strlen($content) * 2);
 
             // Get multi-part content
             if (0 === preg_match('/'.$separator.'\r?\n(.+?)\r?\n'.$separator.'--/s', $body, $matches)) {
