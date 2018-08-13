@@ -118,6 +118,18 @@ class PartTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
+     * Test correct parsing of big multipart data.
+     */
+    public function testBigMultipart()
+    {
+        $content = file_get_contents(__DIR__.'/../../data/big_multipart.txt');
+
+        $part = new Part($content);
+
+        self::assertNotEmpty($part->getPartsByName("big_data"));
+    }
+
+    /**
      * Test RFC 5987 encoded header
      */
     public function testRFC5987Header()

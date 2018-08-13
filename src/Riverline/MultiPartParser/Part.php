@@ -104,10 +104,16 @@ class Part
 
             $separator = '--'.preg_quote($boundary, '/');
 
+            $old_backtrack_limit = ini_get("pcre.backtrack_limit");
+            ini_set("pcre.backtrack_limit", strlen($content));
+
             // Get multi-part content
             if (0 === preg_match('/'.$separator.'\r?\n(.+?)\r?\n'.$separator.'--/s', $body, $matches)) {
+                ini_set("pcre.backtrack_limit", $old_backtrack_limit);
                 throw new \InvalidArgumentException("Can't find multi-part content");
             }
+
+            ini_set("pcre.backtrack_limit", $old_backtrack_limit);
 
             // Get parts
             $parts = preg_split('/\r?\n'.$separator.'\r?\n/', $matches[1]);
