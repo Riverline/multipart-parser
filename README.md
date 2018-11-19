@@ -4,7 +4,8 @@
 
 ## What is Riverline\MultiPartParser
 
-``Riverline\MultiPartParse`` is a one class lib to parse multipart document ( multipart email, multipart form, etc ...) and manage each part encoding and charset to extract their content.
+``Riverline\MultiPartParse`` is a one class library to parse multipart document ( multipart email, multipart form, etc ...) 
+and manage each part encoding and charset to extract their content.
 
 ## Requirements
 
@@ -76,6 +77,19 @@ if ($document->isMultiPart()) {
         echo $parts[2]->getMimeType(); // Output text/plain
     }
 }
+```
+
+## Converters
+
+The libary also provide three converters to quickly parse `PSR-7`, `HttpFoundation` and native requests.
+
+```php
+<?php
+
+use \Riverline\MultiPartParser\Converters;
+
+// Parse $_SERVER and STDIN
+$document = Converters\Globals::convert();
 ```
 
 ## Backward compatibility
