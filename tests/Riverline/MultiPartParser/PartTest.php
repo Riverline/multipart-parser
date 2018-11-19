@@ -1,4 +1,4 @@
-<?php
+<?php /** @noinspection PhpDeprecationInspection */
 
 /*
  * This file is part of the MultiPartParser package.
@@ -21,7 +21,8 @@ class PartTest extends \PHPUnit_Framework_TestCase
      */
     public function testEmptyPart()
     {
-        $this->setExpectedException('\LogicException', "Content is not valid");
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage("Content is not valid");
         new Part('');
     }
 
@@ -37,7 +38,8 @@ class PartTest extends \PHPUnit_Framework_TestCase
         self::assertTrue($part->isMultiPart());
         self::assertCount(3, $part->getParts());
 
-        $this->setExpectedException('\LogicException', "MultiPart content, there aren't body");
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage("MultiPart content, there aren't body");
         $part->getBody();
     }
 }

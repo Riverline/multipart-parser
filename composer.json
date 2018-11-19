@@ -22,8 +22,8 @@
     "phpunit/phpunit": "^4.7 || ^5.2"
   },
   "autoload":{
-    "psr-0":{
-      "Riverline\\MultiPartParser": "src/"
+    "psr-4":{
+      "Riverline\\MultiPartParser\\": "src/Riverline/MultiPartParser/"
     }
   }
 }

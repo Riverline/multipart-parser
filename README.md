@@ -8,11 +8,11 @@
 
 ## Requirements
 
-* PHP 5.3 or HHVM
+* PHP >= 5.6
 
 ## Installation
 
-``Riverline\MultiPartParse`` is compatible with composer and any prs-0 autoloader.
+``Riverline\MultiPartParse`` is compatible with composer and any psr-0/psr-4 autoloader.
 
 ```
 composer require riverline/multipart-parser
@@ -23,9 +23,10 @@ composer require riverline/multipart-parser
 ```php
 <?php
 
-use Riverline\MultiPartParser\Part;
+use Riverline\MultiPartParser\StreamedPart;
 
-$content = <<<EOL
+// Prepare a test stream
+$data = <<<EOL
 User-Agent: curl/7.21.2 (x86_64-apple-darwin)
 Host: localhost:8080
 Accept: */*
@@ -46,8 +47,11 @@ Content-Type: text/plain
 File content
 ------------------------------83ff53821b7c--
 EOL;
+$stream = fopen('php://temp', 'rw');
+fwrite($stream, $data);
+rewind($stream);
 
-$document = new Part($content);
+$document = new StreamedPart($stream);
 
 if ($document->isMultiPart()) {
     $parts = $document->getParts();
@@ -63,8 +67,8 @@ if ($document->isMultiPart()) {
     $contentDisposition = $parts[0]->getHeader('Content-Disposition');
     echo $contentDisposition; // Output Content-Disposition: form-data; name="foo"
     // Helpers
-    echo Part::getHeaderValue($contentDisposition); // Output form-data
-    echo Part::getHeaderOption($contentDisposition, 'name'); // Output foo
+    echo StreamedPart::getHeaderValue($contentDisposition); // Output form-data
+    echo StreamedPart::getHeaderOption($contentDisposition, 'name'); // Output foo
 
     // File helper
     if ($parts[2]->isFile()) {
@@ -73,3 +77,8 @@ if ($document->isMultiPart()) {
     }
 }
 ```
+
+## Backward compatibility
+
+The old `Part` parser is now deprecated and replaced with a wrapper class that create a temporary stream
+from the string content and call the new `StreamedPart` parser.
