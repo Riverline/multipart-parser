@@ -60,7 +60,7 @@ class StreamedPart
 
         while (false !== ($line = fgets($this->stream, $bufferSize))) {
             // Append to buffer
-            $buffer .= rtrim($line);
+            $buffer .= rtrim($line, "\r\n");
 
             if (strlen($line) === $bufferSize-1) {
                 // EOL not reached, continue
@@ -133,24 +133,31 @@ class StreamedPart
             $partOffset = 0;
             $endOfBody = false;
             while ($line = fgets($this->stream, $bufferSize)) {
+                $trimmed = rtrim($line, "\r\n");
+
                 // Search the seperator
-                if (substr($line, 0, strlen($separator)) === $separator) {
+                if ($trimmed === $separator || $trimmed === $separator.'--') {
                     if ($partOffset > 0) {
                         $currentOffset = ftell($this->stream);
+                        // Get end of line length (should be 2)
+                        $eofLength = strlen($line) - strlen($trimmed);
+                        // Part length is current offset - part start offset - separator length - (2 x eof length)
+                        $partLength = $currentOffset - $partOffset - strlen($separator) - (2 * $eofLength);
+                        // Copy part in a new stream
                         $partStream = fopen('php://temp', 'rw');
-                        $partLength = $currentOffset - (strlen($line)) - $partOffset;
-                        /* FIXME replace hardcoded number of newline length */
-                        stream_copy_to_stream($this->stream, $partStream, $partLength - 2, $partOffset);
+                        stream_copy_to_stream($this->stream, $partStream, $partLength, $partOffset);
                         $this->parts[] = new self($partStream);
+                        // Reset current stream offset
                         fseek($this->stream, $currentOffset);
                     }
 
-                    // We reach the end separator
-                    if (trim($line) === $separator.'--') {
+                    if ($trimmed === $separator.'--') {
+                        // We reach the end separator
                         $endOfBody = true;
                         break;
                     }
 
+                    // Update the part offset
                     $partOffset = ftell($this->stream);
                 }
             }
