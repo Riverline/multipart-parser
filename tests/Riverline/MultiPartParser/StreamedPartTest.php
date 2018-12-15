@@ -60,7 +60,7 @@ class StreamedPartTest extends TestCase
     }
 
     /**
-     * Test that is not possible to get a body of a multi part document
+     * Test that is not possible to get a body for a multi part document
      */
     public function testCantGetBodyForAMultiPartMessage()
     {
@@ -71,6 +71,20 @@ class StreamedPartTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage("MultiPart content, there aren't body");
         $part->getBody();
+    }
+
+    /**
+     * Test that is not possible to get parts for a not multi part document
+     */
+    public function testCantGetPartsForANotMultiPartMessage()
+    {
+        $part = new StreamedPart(fopen(__DIR__.'/../../data/no_multipart.txt', 'r'));
+
+        self::assertFalse($part->isMultiPart());
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage("Not MultiPart content, there aren't any parts");
+        $part->getParts();
     }
 
     /**
