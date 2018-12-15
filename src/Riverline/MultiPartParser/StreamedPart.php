@@ -141,8 +141,7 @@ class StreamedPart
                         $currentOffset = ftell($this->stream);
                         // Get end of line length (should be 2)
                         $eofLength = strlen($line) - strlen($trimmed);
-                        // Part length is current offset - part start offset - separator length - (2 x eof length)
-                        $partLength = $currentOffset - $partOffset - strlen($separator) - (2 * $eofLength);
+                        $partLength = $currentOffset - $partOffset - strlen($trimmed) - (2 * $eofLength);
                         // Copy part in a new stream
                         $partStream = fopen('php://temp', 'rw');
                         stream_copy_to_stream($this->stream, $partStream, $partLength, $partOffset);
