@@ -11,6 +11,7 @@
 
 namespace Riverline\MultiPartParser\Converters;
 
+use Riverline\MultiPartParser\StreamedPart;
 use Zend\Diactoros\ServerRequest;
 
 /**
@@ -19,9 +20,11 @@ use Zend\Diactoros\ServerRequest;
 class PSR7Test extends Commun
 {
     /**
-     * Test the parser
+     * Crate a part using PSR7
+     *
+     * @return StreamedPart
      */
-    public function testParser()
+    protected function createPart()
     {
         $request = new ServerRequest(
             [],
@@ -33,13 +36,6 @@ class PSR7Test extends Commun
         );
 
         // Test the converter
-        $part = PSR7::convert($request);
-
-        self::assertTrue($part->isMultiPart());
-        self::assertCount(3, $part->getParts());
-
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage("MultiPart content, there aren't body");
-        $part->getBody();
+        return PSR7::convert($request);
     }
 }

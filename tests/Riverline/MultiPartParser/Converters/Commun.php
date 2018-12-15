@@ -11,15 +11,17 @@
 
 namespace Riverline\MultiPartParser\Converters;
 
+use Riverline\MultiPartParser\StreamedPart;
+
 /**
  * Class Commun
  */
-class Commun extends \PHPUnit_Framework_TestCase
+abstract class Commun extends \PHPUnit_Framework_TestCase
 {
     /**
      * @return resource
      */
-    public function createBodyStream()
+    protected function createBodyStream()
     {
         $content = file_get_contents(__DIR__.'/../../../data/simple_multipart.txt');
 
@@ -31,5 +33,23 @@ class Commun extends \PHPUnit_Framework_TestCase
         rewind($stream);
 
         return $stream;
+    }
+
+    /**
+     * @return StreamedPart
+     */
+    protected abstract function createPart();
+
+
+    /**
+     * Test the parser
+     */
+    public function testParser()
+    {
+        // Test the converter
+        $part = $this->createPart();
+
+        self::assertTrue($part->isMultiPart());
+        self::assertCount(3, $part->getParts());
     }
 }

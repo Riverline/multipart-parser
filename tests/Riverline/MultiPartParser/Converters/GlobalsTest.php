@@ -11,28 +11,25 @@
 
 namespace Riverline\MultiPartParser\Converters;
 
+use Riverline\MultiPartParser\StreamedPart;
+
 /**
  * Class GlobalsTest
  */
 class GlobalsTest extends Commun
 {
     /**
-     * Test the parser
+     * Create a part using globals
+     *
+     * @return StreamedPart
      */
-    public function testParser()
+    protected function createPart()
     {
         // Create PSR7 server request
 
         $_SERVER['HTTP_CONTENT_TYPE'] = 'multipart/form-data; boundary=----------------------------83ff53821b7c';
 
         // Test the converter
-        $part = Globals::convert($this->createBodyStream());
-
-        self::assertTrue($part->isMultiPart());
-        self::assertCount(3, $part->getParts());
-
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage("MultiPart content, there aren't body");
-        $part->getBody();
+        return Globals::convert($this->createBodyStream());
     }
 }
