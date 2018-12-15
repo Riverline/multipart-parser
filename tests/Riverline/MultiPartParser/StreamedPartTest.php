@@ -208,4 +208,21 @@ class StreamedPartTest extends TestCase
         self::assertEquals('This is the content', $parts[0]->getBody());
         self::assertEquals('This is the côntént', $parts[1]->getBody());
     }
+
+    /**
+     * Test a quoted printable decoding
+     */
+    public function testQuotedPrintable()
+    {
+        $part = new StreamedPart(fopen(__DIR__.'/../../data/quoted_printable.txt', 'r'));
+
+        self::assertTrue($part->isMultiPart());
+        self::assertEquals('Добро_пожаловать_на Site.ru', $part->getHeader('Subject'));
+
+        /** @var Part[] $parts */
+        $parts = $part->getParts();
+
+        self::assertEquals('This is the content', $parts[0]->getBody());
+        self::assertEquals('This is the côntént', $parts[1]->getBody());
+    }
 }
