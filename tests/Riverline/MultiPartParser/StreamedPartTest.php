@@ -100,6 +100,7 @@ class StreamedPartTest extends TestCase
         /** @var Part[] $parts */
         $parts = $part->getParts();
 
+        self::assertEquals('image/png', $parts[0]->getMimeType());
         self::assertEquals('bar', $parts[1]->getBody());
         self::assertEquals('rfc', $parts[2]->getBody());
     }
