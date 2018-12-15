@@ -57,6 +57,13 @@ class StreamedPartTest extends TestCase
 
         self::assertFalse($part->isMultiPart());
         self::assertEquals('bar', $part->getBody());
+        self::assertEquals(array(
+            'user-agent' => 'curl/7.21.2 (x86_64-apple-darwin)',
+            'host' => 'localhost:8080',
+            'accept' => '*/*',
+            'expect' => '100-continue',
+            'content-type' => 'text/plain',
+        ), $part->getHeaders());
     }
 
     /**
