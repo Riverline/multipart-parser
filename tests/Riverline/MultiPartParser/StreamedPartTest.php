@@ -58,6 +58,20 @@ class StreamedPartTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
+     * Test that is not possible to get a body of a multi part document
+     */
+    public function testCantGetBodyForAMultiPartMessage()
+    {
+        $part = new StreamedPart(fopen(__DIR__.'/../../data/simple_multipart.txt', 'r'));
+
+        self::assertTrue($part->isMultiPart());
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage("MultiPart content, there aren't body");
+        $part->getBody();
+    }
+
+    /**
      * Test a simple multipart document
      */
     public function testSimpleMultiPart()
@@ -67,9 +81,11 @@ class StreamedPartTest extends \PHPUnit_Framework_TestCase
         self::assertTrue($part->isMultiPart());
         self::assertCount(3, $part->getParts());
 
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage("MultiPart content, there aren't body");
-        $part->getBody();
+        /** @var Part[] $parts */
+        $parts = $part->getParts();
+
+        self::assertEquals('bar', $parts[1]->getBody());
+        self::assertEquals('rfc', $parts[2]->getBody());
     }
 
     /**
@@ -168,11 +184,6 @@ class StreamedPartTest extends \PHPUnit_Framework_TestCase
         $part = new StreamedPart(fopen(__DIR__.'/../../data/email_base64.txt', 'r'));
 
         self::assertTrue($part->isMultiPart());
-
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage("MultiPart content, there aren't body");
-        $part->getBody();
-
         self::assertEquals('This is thé subject', $part->getHeader('Subject'));
 
         /** @var Part[] $parts */
