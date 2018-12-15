@@ -11,10 +11,12 @@
 
 namespace Riverline\MultiPartParser;
 
+use PHPUnit\Framework\TestCase;
+
 /**
  * Class StreamedPartTest
  */
-class StreamedPartTest extends \PHPUnit_Framework_TestCase
+class StreamedPartTest extends TestCase
 {
     /**
      * Test a multipart document without boundary header

@@ -11,10 +11,12 @@
 
 namespace Riverline\MultiPartParser;
 
+use PHPUnit\Framework\TestCase;
+
 /**
  * Class PartTest
  */
-class PartTest extends \PHPUnit_Framework_TestCase
+class PartTest extends TestCase
 {
     /**
      * Test a empty document

@@ -11,12 +11,13 @@
 
 namespace Riverline\MultiPartParser\Converters;
 
+use PHPUnit\Framework\TestCase;
 use Riverline\MultiPartParser\StreamedPart;
 
 /**
  * Class Commun
  */
-abstract class Commun extends \PHPUnit_Framework_TestCase
+abstract class Commun extends TestCase
 {
     /**
      * @return resource
