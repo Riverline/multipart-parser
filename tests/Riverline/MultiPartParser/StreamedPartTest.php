@@ -11,10 +11,12 @@
 
 namespace Riverline\MultiPartParser;
 
+use PHPUnit\Framework\TestCase;
+
 /**
  * Class StreamedPartTest
  */
-class StreamedPartTest extends \PHPUnit_Framework_TestCase
+class StreamedPartTest extends TestCase
 {
     /**
      * Test a multipart document without boundary header
@@ -55,6 +57,66 @@ class StreamedPartTest extends \PHPUnit_Framework_TestCase
 
         self::assertFalse($part->isMultiPart());
         self::assertEquals('bar', $part->getBody());
+        self::assertEquals(array(
+            'user-agent' => 'curl/7.21.2 (x86_64-apple-darwin)',
+            'host' => 'localhost:8080',
+            'accept' => '*/*',
+            'expect' => '100-continue',
+            'content-type' => 'text/plain',
+        ), $part->getHeaders());
+    }
+
+    /**
+     * Test that is not possible to get a body for a multi part document
+     */
+    public function testCantGetBodyForAMultiPartMessage()
+    {
+        $part = new StreamedPart(fopen(__DIR__.'/../../data/simple_multipart.txt', 'r'));
+
+        self::assertTrue($part->isMultiPart());
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage("MultiPart content, there aren't body");
+        $part->getBody();
+    }
+
+    /**
+     * Test multipart without new line at the end
+     */
+    public function testNoNewLineAtTheEndOfTheParts()
+    {
+        $content = "Content-Type: multipart/related; boundary=delimiter\r\n".
+            "\r\n" .
+            "--delimiter\r\n" .
+            "Content-Type:mime/type\r\n" .
+            "\r\n" .
+            "Content\r\n" .
+            "--delimiter--";
+
+
+        $stream = fopen('php://temp', 'rw');
+        fwrite($stream, $content);
+        rewind($stream);
+
+        $part = new StreamedPart($stream);
+          /** @var Part[] $parts */
+        $parts = $part->getParts();
+        self::assertEquals('Content', $parts[0]->getBody());
+
+    }
+
+    /**
+     * Test that is not possible to get parts for a not multi part document
+     */
+    public function testCantGetPartsForANotMultiPartMessage()
+    {
+        $part = new StreamedPart(fopen(__DIR__.'/../../data/no_multipart.txt', 'r'));
+
+        self::assertFalse($part->isMultiPart());
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage("Not MultiPart content, there aren't any parts");
+        $part->getParts();
     }
 
     /**
@@ -67,9 +129,12 @@ class StreamedPartTest extends \PHPUnit_Framework_TestCase
         self::assertTrue($part->isMultiPart());
         self::assertCount(3, $part->getParts());
 
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage("MultiPart content, there aren't body");
-        $part->getBody();
+        /** @var Part[] $parts */
+        $parts = $part->getParts();
+
+        self::assertEquals('image/png', $parts[0]->getMimeType());
+        self::assertEquals('bar', $parts[1]->getBody());
+        self::assertEquals('rfc', $parts[2]->getBody());
     }
 
     /**
@@ -168,12 +233,24 @@ class StreamedPartTest extends \PHPUnit_Framework_TestCase
         $part = new StreamedPart(fopen(__DIR__.'/../../data/email_base64.txt', 'r'));
 
         self::assertTrue($part->isMultiPart());
-
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage("MultiPart content, there aren't body");
-        $part->getBody();
-
         self::assertEquals('This is thé subject', $part->getHeader('Subject'));
+
+        /** @var Part[] $parts */
+        $parts = $part->getParts();
+
+        self::assertEquals('This is the content', $parts[0]->getBody());
+        self::assertEquals('This is the côntént', $parts[1]->getBody());
+    }
+
+    /**
+     * Test a quoted printable decoding
+     */
+    public function testQuotedPrintable()
+    {
+        $part = new StreamedPart(fopen(__DIR__.'/../../data/quoted_printable.txt', 'r'));
+
+        self::assertTrue($part->isMultiPart());
+        self::assertEquals('Добро_пожаловать_на Site.ru', $part->getHeader('Subject'));
 
         /** @var Part[] $parts */
         $parts = $part->getParts();

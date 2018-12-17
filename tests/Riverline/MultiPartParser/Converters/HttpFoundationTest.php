@@ -11,6 +11,7 @@
 
 namespace Riverline\MultiPartParser\Converters;
 
+use Riverline\MultiPartParser\StreamedPart;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -19,9 +20,11 @@ use Symfony\Component\HttpFoundation\Request;
 class HttpFoundationTest extends Commun
 {
     /**
-     * Test the parser
+     * Create a part using symfony
+     *
+     * @return StreamedPart
      */
-    public function testParser()
+    protected function createPart()
     {
         $request = Request::create(
             '/',
@@ -34,13 +37,6 @@ class HttpFoundationTest extends Commun
         );
 
         // Test the converter
-        $part = HttpFoundation::convert($request);
-
-        self::assertTrue($part->isMultiPart());
-        self::assertCount(3, $part->getParts());
-
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage("MultiPart content, there aren't body");
-        $part->getBody();
+        return HttpFoundation::convert($request);
     }
 }

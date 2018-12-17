@@ -19,7 +19,7 @@
     "ext-mbstring": "*"
   },
   "require-dev":{
-    "phpunit/phpunit":  "^4.7 || ^5.2",
+    "phpunit/phpunit":  "^4.8.35 || ^5.2 || ^6.0 || ^7.0",
     "psr/http-message": "^1.0",
     "symfony/psr-http-message-bridge": "^1.1",
     "zendframework/zend-diactoros": "^1.0"

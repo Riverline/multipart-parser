@@ -141,8 +141,15 @@ class StreamedPart
                         $currentOffset = ftell($this->stream);
                         // Get end of line length (should be 2)
                         $eofLength = strlen($line) - strlen($trimmed);
-                        // Part length is current offset - part start offset - separator length - (2 x eof length)
-                        $partLength = $currentOffset - $partOffset - strlen($separator) - (2 * $eofLength);
+                        $partLength = $currentOffset - $partOffset - strlen($trimmed) - (2 * $eofLength);
+
+                        // if we are at the end of a part, and there is no trailing new line ($eofLength == 0)
+                        // means that we are also at the end of the stream.
+                        // we do not know if $eofLength is 1 or two, so we guess it to 2 (\r\n) since is more standard
+                        if ($eofLength === 0 && feof($this->stream)) {
+                            $partLength = $currentOffset - $partOffset - strlen($line) - 2;
+                        }
+
                         // Copy part in a new stream
                         $partStream = fopen('php://temp', 'rw');
                         stream_copy_to_stream($this->stream, $partStream, $partLength, $partOffset);

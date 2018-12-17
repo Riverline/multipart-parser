@@ -10,7 +10,7 @@ Content-Type: multipart/form-data; boundary=----------------------------83ff5382
 
 ------------------------------83ff53821b7c
 Content-Disposition: form-data; name="img"; filename="a.png"
-Content-Type: application/octet-stream
+Content-Type: image/png
 
 ?PNG
 
