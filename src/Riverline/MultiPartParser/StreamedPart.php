@@ -37,6 +37,13 @@ class StreamedPart
     private $parts = array();
 
     /**
+     * The length of the EOL character.
+     *
+     * @var int
+     */
+    private static $EOLCharacterLength = 2;
+
+    /**
      * StreamParser constructor.
      *
      * @param resource $stream
@@ -147,7 +154,7 @@ class StreamedPart
                         // means that we are also at the end of the stream.
                         // we do not know if $eofLength is 1 or two, so we guess it to 2 (\r\n) since is more standard
                         if ($eofLength === 0 && feof($this->stream)) {
-                            $partLength = $currentOffset - $partOffset - strlen($line) - 2;
+                            $partLength = $currentOffset - $partOffset - strlen($line) - static::$EOLCharacterLength;
                         }
 
                         // Copy part in a new stream
@@ -419,5 +426,15 @@ class StreamedPart
         }
 
         return array($headerValue, $options);
+    }
+
+    /**
+     * Set the EOL Length to a custom value.
+     *
+     * @param $length
+     */
+    public static function setEOLCharacterLength($length)
+    {
+        static::$EOLCharacterLength = $length;
     }
 }
