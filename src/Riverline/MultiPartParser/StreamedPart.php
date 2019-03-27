@@ -41,20 +41,22 @@ class StreamedPart
      *
      * @var int
      */
-    private static $EOLCharacterLength = 2;
+    private $EOLCharacterLength = 2;
 
     /**
      * StreamParser constructor.
      *
      * @param resource $stream
+     * @param int $EOLCharacterLength
      */
-    public function __construct($stream)
+    public function __construct($stream, $EOLCharacterLength = 2)
     {
         if (false === is_resource($stream)) {
             throw new \InvalidArgumentException('Input is not a stream');
         }
 
         $this->stream = $stream;
+        $this->EOLCharacterLength = $EOLCharacterLength;
 
         // Reset the stream
         rewind($this->stream);
@@ -154,13 +156,13 @@ class StreamedPart
                         // means that we are also at the end of the stream.
                         // we do not know if $eofLength is 1 or two, so we guess it to 2 (\r\n) since is more standard
                         if ($eofLength === 0 && feof($this->stream)) {
-                            $partLength = $currentOffset - $partOffset - strlen($line) - static::$EOLCharacterLength;
+                            $partLength = $currentOffset - $partOffset - strlen($line) - $this->EOLCharacterLength;
                         }
 
                         // Copy part in a new stream
                         $partStream = fopen('php://temp', 'rw');
                         stream_copy_to_stream($this->stream, $partStream, $partLength, $partOffset);
-                        $this->parts[] = new self($partStream);
+                        $this->parts[] = new self($partStream, $this->EOLCharacterLength);
                         // Reset current stream offset
                         fseek($this->stream, $currentOffset);
                     }
@@ -426,15 +428,5 @@ class StreamedPart
         }
 
         return array($headerValue, $options);
-    }
-
-    /**
-     * Set the EOL Length to a custom value.
-     *
-     * @param $length
-     */
-    public static function setEOLCharacterLength($length)
-    {
-        static::$EOLCharacterLength = $length;
     }
 }
