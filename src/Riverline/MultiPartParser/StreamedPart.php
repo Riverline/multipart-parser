@@ -154,7 +154,8 @@ class StreamedPart
 
                         // if we are at the end of a part, and there is no trailing new line ($eofLength == 0)
                         // means that we are also at the end of the stream.
-                        // we do not know if $eofLength is 1 or two, so we guess it to 2 (\r\n) since is more standard
+                        // we do not know if $eofLength is 1 or two, so we'll use the EOLCharacterLength value
+                        // which is 2 by default.
                         if ($eofLength === 0 && feof($this->stream)) {
                             $partLength = $currentOffset - $partOffset - strlen($line) - $this->EOLCharacterLength;
                         }
