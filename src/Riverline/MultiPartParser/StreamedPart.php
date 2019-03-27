@@ -41,7 +41,7 @@ class StreamedPart
      *
      * @var int
      */
-    private $EOLCharacterLength = 2;
+    private $EOLCharacterLength;
 
     /**
      * StreamParser constructor.
@@ -53,6 +53,10 @@ class StreamedPart
     {
         if (false === is_resource($stream)) {
             throw new \InvalidArgumentException('Input is not a stream');
+        }
+
+        if (false === is_integer($EOLCharacterLength)) {
+            throw new \InvalidArgumentException('EOL Length is not an integer');
         }
 
         $this->stream = $stream;
