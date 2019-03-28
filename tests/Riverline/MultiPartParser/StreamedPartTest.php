@@ -106,6 +106,30 @@ class StreamedPartTest extends TestCase
     }
 
     /**
+     * Test multipart without new line at the end
+     */
+    public function testNoNewLineAtTheEndOfThePartsWhenNewLineIsOneCharacterLong()
+    {
+        $content = "Content-Type: multipart/related; boundary=delimiter\n".
+            "\n" .
+            "--delimiter\n" .
+            "Content-Type:mime/type\n" .
+            "\n" .
+            "Content\n" .
+            "--delimiter--";
+
+
+        $stream = fopen('php://temp', 'rw');
+        fwrite($stream, $content);
+        rewind($stream);
+
+        $part = new StreamedPart($stream, 1);
+        /** @var Part[] $parts */
+        $parts = $part->getParts();
+        self::assertEquals('Content', $parts[0]->getBody());
+    }
+
+    /**
      * Test that is not possible to get parts for a not multi part document
      */
     public function testCantGetPartsForANotMultiPartMessage()
