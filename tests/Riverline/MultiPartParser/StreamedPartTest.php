@@ -19,6 +19,26 @@ use PHPUnit\Framework\TestCase;
 class StreamedPartTest extends TestCase
 {
     /**
+     * Test a multipart with invalid stream resource
+     */
+    public function testInvalidStreamResource()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage("Input is not a stream");
+        new StreamedPart('invalid stream resource');
+    }
+
+    /**
+     * Test a multipart with invalid EOL character length
+     */
+    public function testInvalidEOLCharacterLength()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage("EOL Length is not an integer");
+        new StreamedPart(fopen(__DIR__.'/../../data/no_boundary.txt', 'r'), 'invalid EOL character length');
+    }
+
+    /**
      * Test a multipart document without boundary header
      */
     public function testNoBoundaryPart()
