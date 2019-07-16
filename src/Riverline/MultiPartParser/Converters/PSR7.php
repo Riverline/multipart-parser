@@ -11,6 +11,7 @@
 
 namespace Riverline\MultiPartParser\Converters;
 
+use Psr\Http\Message\MessageInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Riverline\MultiPartParser\StreamedPart;
 
@@ -24,7 +25,7 @@ class PSR7
      *
      * @return StreamedPart
      */
-    public static function convert(ServerRequestInterface $serverRequest)
+    public static function convert(MessageInterface $serverRequest)
     {
         $stream = fopen('php://temp', 'rw');
 
