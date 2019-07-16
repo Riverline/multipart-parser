@@ -12,7 +12,6 @@
 namespace Riverline\MultiPartParser\Converters;
 
 use Psr\Http\Message\MessageInterface;
-use Psr\Http\Message\ServerRequestInterface;
 use Riverline\MultiPartParser\StreamedPart;
 
 /**
@@ -21,22 +20,22 @@ use Riverline\MultiPartParser\StreamedPart;
 class PSR7
 {
     /**
-     * @param ServerRequestInterface $serverRequest
+     * @param MessageInterface $message
      *
      * @return StreamedPart
      */
-    public static function convert(MessageInterface $serverRequest)
+    public static function convert(MessageInterface $message)
     {
         $stream = fopen('php://temp', 'rw');
 
-        foreach ($serverRequest->getHeaders() as $key => $values) {
+        foreach ($message->getHeaders() as $key => $values) {
             foreach ($values as $value) {
                 fwrite($stream, "$key: $value\r\n");
             }
         }
         fwrite($stream, "\r\n");
 
-        $body = $serverRequest->getBody();
+        $body = $message->getBody();
         $body->rewind();
 
         while (!$body->eof()) {
