@@ -302,4 +302,19 @@ class StreamedPartTest extends TestCase
         self::assertEquals('This is the content', $parts[0]->getBody());
         self::assertEquals('This is the côntént', $parts[1]->getBody());
     }
+
+    /**
+     * Issue 32
+     * @link https://github.com/Riverline/multipart-parser/pull/32
+     */
+    public function testIssue32()
+    {
+        $document = new StreamedPart(fopen(__DIR__.'/../../data/issue32.txt', 'r'));
+
+        self::assertTrue($document->isMultiPart());
+        $parts = $document->getParts();
+
+        self::assertEquals('No new line at the end', $parts[0]->getBody());
+        self::assertEquals('string', $parts[1]->getBody());
+    }
 }

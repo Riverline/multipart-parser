@@ -145,6 +145,7 @@ class StreamedPart
 
             $partOffset = 0;
             $endOfBody = false;
+            $previousEOFLength = $this->EOLCharacterLength;
             while ($line = fgets($this->stream, $bufferSize)) {
                 $trimmed = rtrim($line, "\r\n");
 
@@ -158,10 +159,8 @@ class StreamedPart
 
                         // if we are at the end of a part, and there is no trailing new line ($eofLength == 0)
                         // means that we are also at the end of the stream.
-                        // we do not know if $eofLength is 1 or two, so we'll use the EOLCharacterLength value
-                        // which is 2 by default.
                         if ($eofLength === 0 && feof($this->stream)) {
-                            $partLength = $currentOffset - $partOffset - strlen($line) - $this->EOLCharacterLength;
+                            $partLength = $currentOffset - $partOffset - strlen($line) - $previousEOFLength;
                         }
 
                         // Copy part in a new stream
@@ -170,6 +169,7 @@ class StreamedPart
                         $this->parts[] = new self($partStream, $this->EOLCharacterLength);
                         // Reset current stream offset
                         fseek($this->stream, $currentOffset);
+                        $previousEOFLength = $eofLength;
                     }
 
                     if ($trimmed === $separator.'--') {

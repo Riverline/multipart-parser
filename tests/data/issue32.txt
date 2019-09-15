@@ -1,0 +1,16 @@
+POST / HTTP/1.1
+Host: example.com
+Content-Type: multipart/form-data; boundary="578de3b0e3c46.2334ba3"
+
+--578de3b0e3c46.2334ba3
+Content-Disposition: form-data; name="foo"
+Content-Length: 15
+
+No new line at the end
+--578de3b0e3c46.2334ba3
+Content-Type: text/plain
+Content-Disposition: form-data; name="baz"
+Content-Length: 6
+
+string
+--578de3b0e3c46.2334ba3--
