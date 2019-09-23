@@ -148,7 +148,7 @@ class StreamedPart
             while ($line = fgets($this->stream, $bufferSize)) {
                 $trimmed = rtrim($line, "\r\n");
 
-                // Search the seperator
+                // Search the separator
                 if ($trimmed === $separator || $trimmed === $separator.'--') {
                     if ($partOffset > 0) {
                         $currentOffset = ftell($this->stream);
