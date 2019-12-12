@@ -35,7 +35,7 @@ class StreamedPartTest extends TestCase
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage("EOL Length is not an integer");
-        new StreamedPart(fopen(__DIR__.'/../../data/no_boundary.txt', 'r'), 'invalid EOL character length');
+        new StreamedPart(fopen(__DIR__ . '/_data/no_boundary.txt', 'r'), 'invalid EOL character length');
     }
 
     /**
@@ -45,7 +45,7 @@ class StreamedPartTest extends TestCase
     {
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage("Can't find boundary in content type");
-        new StreamedPart(fopen(__DIR__.'/../../data/no_boundary.txt', 'r'));
+        new StreamedPart(fopen(__DIR__ . '/_data/no_boundary.txt', 'r'));
     }
 
     /**
@@ -55,7 +55,7 @@ class StreamedPartTest extends TestCase
     {
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage("Can't find multi-part content");
-        new StreamedPart(fopen(__DIR__.'/../../data/no_first_boundary.txt', 'r'));
+        new StreamedPart(fopen(__DIR__ . '/_data/no_first_boundary.txt', 'r'));
     }
 
     /**
@@ -65,7 +65,7 @@ class StreamedPartTest extends TestCase
     {
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage("Can't find multi-part content");
-        new StreamedPart(fopen(__DIR__.'/../../data/no_last_boundary.txt', 'r'));
+        new StreamedPart(fopen(__DIR__ . '/_data/no_last_boundary.txt', 'r'));
     }
 
     /**
@@ -73,7 +73,7 @@ class StreamedPartTest extends TestCase
      */
     public function testNoMultiPart()
     {
-        $part = new StreamedPart(fopen(__DIR__.'/../../data/no_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/no_multipart.txt', 'r'));
 
         self::assertFalse($part->isMultiPart());
         self::assertEquals('bar', $part->getBody());
@@ -91,7 +91,7 @@ class StreamedPartTest extends TestCase
      */
     public function testCantGetBodyForAMultiPartMessage()
     {
-        $part = new StreamedPart(fopen(__DIR__.'/../../data/simple_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'r'));
 
         self::assertTrue($part->isMultiPart());
 
@@ -154,7 +154,7 @@ class StreamedPartTest extends TestCase
      */
     public function testCantGetPartsForANotMultiPartMessage()
     {
-        $part = new StreamedPart(fopen(__DIR__.'/../../data/no_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/no_multipart.txt', 'r'));
 
         self::assertFalse($part->isMultiPart());
 
@@ -168,7 +168,7 @@ class StreamedPartTest extends TestCase
      */
     public function testSimpleMultiPart()
     {
-        $part = new StreamedPart(fopen(__DIR__.'/../../data/simple_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'r'));
 
         self::assertTrue($part->isMultiPart());
         self::assertCount(3, $part->getParts());
@@ -186,7 +186,7 @@ class StreamedPartTest extends TestCase
      */
     public function testMultiLineHeader()
     {
-        $part = new StreamedPart(fopen(__DIR__.'/../../data/simple_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'r'));
 
         self::assertEquals('line one line two with space line three with tab', $part->getHeader('X-Multi-Line'));
     }
@@ -196,7 +196,7 @@ class StreamedPartTest extends TestCase
      */
     public function testFilterByName()
     {
-        $part = new StreamedPart(fopen(__DIR__.'/../../data/simple_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'r'));
 
         self::assertCount(1, $part->getPartsByName('foo'));
     }
@@ -206,7 +206,7 @@ class StreamedPartTest extends TestCase
      */
     public function testPartContent()
     {
-        $part = new StreamedPart(fopen(__DIR__.'/../../data/simple_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'r'));
 
         $foo = $part->getPartsByName('foo');
 
@@ -218,7 +218,7 @@ class StreamedPartTest extends TestCase
      */
     public function testRFC5987Header()
     {
-        $part = new StreamedPart(fopen(__DIR__.'/../../data/simple_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'r'));
 
         $parts = $part->getParts();
         $header = $parts[2]->getHeader('Content-Disposition');
@@ -232,7 +232,7 @@ class StreamedPartTest extends TestCase
      */
     public function testHeaderHelpers()
     {
-        $part = new StreamedPart(fopen(__DIR__.'/../../data/simple_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'r'));
 
         $parts = $part->getParts();
         $header = $parts[1]->getHeader('Content-Disposition');
@@ -246,7 +246,7 @@ class StreamedPartTest extends TestCase
      */
     public function testFileHelper()
     {
-        $part = new StreamedPart(fopen(__DIR__.'/../../data/simple_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'r'));
 
         $parts = $part->getParts();
 
@@ -260,7 +260,7 @@ class StreamedPartTest extends TestCase
      */
     public function testNestedMultiPart()
     {
-        $part = new StreamedPart(fopen(__DIR__.'/../../data/nested_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/nested_multipart.txt', 'r'));
 
         self::assertTrue($part->isMultiPart());
 
@@ -274,7 +274,7 @@ class StreamedPartTest extends TestCase
      */
     public function testEmailBase64()
     {
-        $part = new StreamedPart(fopen(__DIR__.'/../../data/email_base64.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/email_base64.txt', 'r'));
 
         self::assertTrue($part->isMultiPart());
         self::assertEquals('This is thé subject', $part->getHeader('Subject'));
@@ -291,7 +291,7 @@ class StreamedPartTest extends TestCase
      */
     public function testQuotedPrintable()
     {
-        $part = new StreamedPart(fopen(__DIR__.'/../../data/quoted_printable.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/quoted_printable.txt', 'r'));
 
         self::assertTrue($part->isMultiPart());
         self::assertEquals('Добро_пожаловать_на Site.ru', $part->getHeader('Subject'));
