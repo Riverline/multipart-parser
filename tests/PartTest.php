@@ -33,7 +33,7 @@ class PartTest extends TestCase
      */
     public function testSimpleMultiPart()
     {
-        $content = file_get_contents(__DIR__.'/../../data/simple_multipart.txt');
+        $content = file_get_contents(__DIR__ . '/_data/simple_multipart.txt');
 
         $part = new Part($content);
 

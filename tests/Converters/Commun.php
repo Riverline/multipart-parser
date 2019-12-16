@@ -24,7 +24,7 @@ abstract class Commun extends TestCase
      */
     protected function createBodyStream()
     {
-        $content = file_get_contents(__DIR__.'/../../../data/simple_multipart.txt');
+        $content = file_get_contents(__DIR__ . '/../_data/simple_multipart.txt');
 
         list(, $body) = preg_split("/(\r\n){2}/", $content, 2);
 
