@@ -22,7 +22,7 @@
     "phpunit/phpunit":  "^5.2 || ^6.0 || ^7.0",
     "psr/http-message": "^1.0",
     "symfony/psr-http-message-bridge": "^1.1",
-    "zendframework/zend-diactoros": "^1.0"
+    "laminas/laminas-diactoros": "^1.8.7"
   },
   "autoload":{
     "psr-4":{

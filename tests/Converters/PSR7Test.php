@@ -11,8 +11,8 @@
 
 namespace Riverline\MultiPartParser\Converters;
 
+use Laminas\Diactoros\ServerRequest;
 use Riverline\MultiPartParser\StreamedPart;
-use Zend\Diactoros\ServerRequest;
 
 /**
  * Class PSR7Test
