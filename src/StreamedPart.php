@@ -187,7 +187,7 @@ class StreamedPart
             if (0 === count($this->parts)
                 || false === $endOfBody
             ) {
-                throw new \LogicException("Can't find multi-part content");
+                throw new \InvalidArgumentException("Can't find multi-part content");
             }
         }
     }

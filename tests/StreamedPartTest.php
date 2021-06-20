@@ -53,7 +53,7 @@ class StreamedPartTest extends TestCase
      */
     public function testNoFirstBoundaryPart()
     {
-        $this->expectException(\LogicException::class);
+        $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage("Can't find multi-part content");
         new StreamedPart(fopen(__DIR__ . '/_data/no_first_boundary.txt', 'r'));
     }
@@ -63,7 +63,7 @@ class StreamedPartTest extends TestCase
      */
     public function testNoLastBoundaryPart()
     {
-        $this->expectException(\LogicException::class);
+        $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage("Can't find multi-part content");
         new StreamedPart(fopen(__DIR__ . '/_data/no_last_boundary.txt', 'r'));
     }
