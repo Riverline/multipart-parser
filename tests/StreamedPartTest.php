@@ -43,7 +43,7 @@ class StreamedPartTest extends TestCase
      */
     public function testNoBoundaryPart()
     {
-        $this->expectException(\LogicException::class);
+        $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage("Can't find boundary in content type");
         new StreamedPart(fopen(__DIR__ . '/_data/no_boundary.txt', 'r'));
     }
