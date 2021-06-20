@@ -48,6 +48,8 @@ class StreamedPart
      *
      * @param resource $stream
      * @param int $EOLCharacterLength
+     *
+     * @throws \InvalidArgumentException
      */
     public function __construct($stream, $EOLCharacterLength = 2)
     {
