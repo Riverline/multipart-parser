@@ -18,12 +18,6 @@ use Riverline\MultiPartParser\StreamedPart;
  */
 class Globals
 {
-    static $specialKeysExistsMap = [
-        'content_length' => false,
-        'content_md5' => false,
-        'content_type' => false,
-    ];
-
     /**
      * @param resource|null $input
      *
@@ -31,52 +25,27 @@ class Globals
      */
     public static function convert($input = null)
     {
-        self::initSpecialKeysExistsMap();
-
         $stream = fopen('php://temp', 'rw');
 
-
-        foreach ($_SERVER as $key => $value) {
-            if (0 === strpos($key, 'HTTP_')) {
-                $key = str_replace('_', '-', strtolower(substr($key, 5)));
-
-                if (!self::isExistsSpecialKey($key)) {
-                    fwrite($stream, "$key: $value\r\n");
-                }
-            } elseif (in_array($key, ['CONTENT_LENGTH', 'CONTENT_MD5', 'CONTENT_TYPE'])) {
-                $key = str_replace('_', '-', strtolower($key));
-
-                if (!self::isExistsSpecialKey($key)) {
-                    fwrite($stream, "$key: $value\r\n");
-                }
-            }
-        }
+        self::writeRequestHeadersToStream($stream);
 
         fwrite($stream, "\r\n");
-        $inputStream = self::getInputStreamByInput($input);
-        stream_copy_to_stream($inputStream, $stream);
 
+        $inputStream = self::getInputStreamByInput($input);
+
+        stream_copy_to_stream($inputStream, $stream);
         rewind($stream);
 
         return new StreamedPart($stream);
     }
 
-    static private function initSpecialKeysExistsMap()
+    static private function writeRequestHeadersToStream($stream)
     {
-        self::$specialKeysExistsMap = [
-            'content_length' => false,
-            'content_md5' => false,
-            'content_type' => false,
-        ];
-    }
+        $headers = getallheaders();
 
-    /**
-     * @param $key
-     * @return bool
-     */
-    static private function isExistsSpecialKey($key)
-    {
-        return array_key_exists($key, self::$specialKeysExistsMap) && self::$specialKeysExistsMap[$key];
+        foreach ($headers as $key => $value) {
+            fwrite($stream, "$key: $value\r\n");
+        }
     }
 
     /**
