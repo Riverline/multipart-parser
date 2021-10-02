@@ -58,11 +58,23 @@ class Globals
             return $input;
         }
 
-        return self::getStdinStream();
+        return self::getDefaultStream();
     }
 
-    static private function getStdinStream()
+    static private function getDefaultStream()
     {
-        return fopen('php://stdin', 'r');
+        $filename = self::getDefaultRequestStreamFilename();
+
+        return fopen($filename, 'r');
+    }
+
+    static private function getDefaultRequestStreamFilename()
+    {
+        return self::isCliSapi() ? 'php://stdin' : 'php://input';
+    }
+
+    static private function isCliSapi()
+    {
+        return strpos(PHP_SAPI, 'cli') !== false;
     }
 }
