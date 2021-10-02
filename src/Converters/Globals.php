@@ -18,6 +18,12 @@ use Riverline\MultiPartParser\StreamedPart;
  */
 class Globals
 {
+    static $specialKeysExistsMap = [
+        'content_length' => false,
+        'content_md5' => false,
+        'content_type' => false,
+    ];
+
     /**
      * @param resource|null $input
      *
@@ -25,15 +31,24 @@ class Globals
      */
     public static function convert($input = null)
     {
+        self::initSpecialKeysExistsMap();
+
         $stream = fopen('php://temp', 'rw');
+
 
         foreach ($_SERVER as $key => $value) {
             if (0 === strpos($key, 'HTTP_')) {
                 $key = str_replace('_', '-', strtolower(substr($key, 5)));
-                fwrite($stream, "$key: $value\r\n");
+
+                if (!self::isExistsSpecialKey($key)) {
+                    fwrite($stream, "$key: $value\r\n");
+                }
             } elseif (in_array($key, ['CONTENT_LENGTH', 'CONTENT_MD5', 'CONTENT_TYPE'])) {
                 $key = str_replace('_', '-', strtolower($key));
-                fwrite($stream, "$key: $value\r\n");
+
+                if (!self::isExistsSpecialKey($key)) {
+                    fwrite($stream, "$key: $value\r\n");
+                }
             }
         }
 
@@ -44,6 +59,24 @@ class Globals
         rewind($stream);
 
         return new StreamedPart($stream);
+    }
+
+    static private function initSpecialKeysExistsMap()
+    {
+        self::$specialKeysExistsMap = [
+            'content_length' => false,
+            'content_md5' => false,
+            'content_type' => false,
+        ];
+    }
+
+    /**
+     * @param $key
+     * @return bool
+     */
+    static private function isExistsSpecialKey($key)
+    {
+        return array_key_exists($key, self::$specialKeysExistsMap) && self::$specialKeysExistsMap[$key];
     }
 
     /**
