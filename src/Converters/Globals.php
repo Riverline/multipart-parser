@@ -19,11 +19,11 @@ use Riverline\MultiPartParser\StreamedPart;
 class Globals
 {
     /**
-     * @param bool|resource $input
+     * @param resource|null $input
      *
      * @return StreamedPart
      */
-    public static function convert($input = STDIN)
+    public static function convert($input = null)
     {
         $stream = fopen('php://temp', 'rw');
 
@@ -38,11 +38,29 @@ class Globals
         }
 
         fwrite($stream, "\r\n");
-
-        stream_copy_to_stream($input, $stream);
+        $inputStream = self::getInputStreamByInput($input);
+        stream_copy_to_stream($inputStream, $stream);
 
         rewind($stream);
 
         return new StreamedPart($stream);
+    }
+
+    /**
+     * @param resource|null $input
+     * @return resource
+     */
+    static private function getInputStreamByInput($input = null)
+    {
+        if (is_resource($input)) {
+            return $input;
+        }
+
+        return self::getStdinStream();
+    }
+
+    static private function getStdinStream()
+    {
+        return fopen('php://stdin', 'r');
     }
 }
