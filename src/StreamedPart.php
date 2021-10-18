@@ -219,7 +219,7 @@ class StreamedPart
         $body = stream_get_contents($this->stream, -1, $this->bodyOffset);
 
         // Decode
-        $encoding = strtolower($this->getHeader('Content-Transfer-Encoding'));
+        $encoding = strtolower((string) $this->getHeader('Content-Transfer-Encoding'));
         switch ($encoding) {
             case 'base64':
                 $body = base64_decode($body);
@@ -400,7 +400,7 @@ class StreamedPart
      */
     private static function parseHeaderContent($content)
     {
-        $parts = explode(';', $content);
+        $parts = explode(';', (string) $content);
         $headerValue = array_shift($parts);
         $options = array();
         // Parse options
