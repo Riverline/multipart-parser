@@ -29,16 +29,6 @@ class StreamedPartTest extends TestCase
     }
 
     /**
-     * Test a multipart with invalid EOL character length
-     */
-    public function testInvalidEOLCharacterLength()
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage("EOL Length is not an integer");
-        new StreamedPart(fopen(__DIR__ . '/_data/no_boundary.txt', 'r'), 'invalid EOL character length');
-    }
-
-    /**
      * Test a multipart document without boundary header
      */
     public function testNoBoundaryPart()

@@ -37,30 +37,17 @@ class StreamedPart
     private $parts = array();
 
     /**
-     * The length of the EOL character.
-     *
-     * @var int
-     */
-    private $EOLCharacterLength;
-
-    /**
      * StreamParser constructor.
      *
      * @param resource $stream
-     * @param int $EOLCharacterLength
      */
-    public function __construct($stream, $EOLCharacterLength = 2)
+    public function __construct($stream)
     {
         if (false === is_resource($stream)) {
             throw new \InvalidArgumentException('Input is not a stream');
         }
 
-        if (false === is_integer($EOLCharacterLength)) {
-            throw new \InvalidArgumentException('EOL Length is not an integer');
-        }
-
         $this->stream = $stream;
-        $this->EOLCharacterLength = $EOLCharacterLength;
 
         // Reset the stream
         rewind($this->stream);
@@ -145,6 +132,8 @@ class StreamedPart
 
             $partOffset = 0;
             $endOfBody = false;
+            $eofLength = 0;
+
             while ($line = fgets($this->stream, $bufferSize)) {
                 $trimmed = rtrim($line, "\r\n");
 
@@ -152,22 +141,12 @@ class StreamedPart
                 if ($trimmed === $separator || $trimmed === $separator.'--') {
                     if ($partOffset > 0) {
                         $currentOffset = ftell($this->stream);
-                        // Get end of line length (should be 2)
-                        $eofLength = strlen($line) - strlen($trimmed);
-                        $partLength = $currentOffset - $partOffset - strlen($trimmed) - (2 * $eofLength);
-
-                        // if we are at the end of a part, and there is no trailing new line ($eofLength == 0)
-                        // means that we are also at the end of the stream.
-                        // we do not know if $eofLength is 1 or two, so we'll use the EOLCharacterLength value
-                        // which is 2 by default.
-                        if ($eofLength === 0 && feof($this->stream)) {
-                            $partLength = $currentOffset - $partOffset - strlen($line) - $this->EOLCharacterLength;
-                        }
+                        $partLength = $currentOffset - $partOffset - strlen($line) - $eofLength;
 
                         // Copy part in a new stream
                         $partStream = fopen('php://temp', 'rw');
                         stream_copy_to_stream($this->stream, $partStream, $partLength, $partOffset);
-                        $this->parts[] = new self($partStream, $this->EOLCharacterLength);
+                        $this->parts[] = new self($partStream);
                         // Reset current stream offset
                         fseek($this->stream, $currentOffset);
                     }
@@ -181,6 +160,9 @@ class StreamedPart
                     // Update the part offset
                     $partOffset = ftell($this->stream);
                 }
+
+                // Get end of line length (should be 2)
+                $eofLength = strlen($line) - strlen($trimmed);
             }
 
 
