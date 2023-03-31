@@ -143,7 +143,7 @@ class StreamedPartTest extends TestCase
         fwrite($stream, $content);
         rewind($stream);
 
-        $part = new StreamedPart($stream, 1);
+        $part = new StreamedPart($stream);
         /** @var Part[] $parts */
         $parts = $part->getParts();
         self::assertEquals('Content', $parts[0]->getBody());
