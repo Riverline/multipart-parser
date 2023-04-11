@@ -21,6 +21,7 @@ jobs:
       - uses: php-actions/composer@v6
         with:
           php_version: ${{ matrix.php-versions }}
+          version: 1.x
       - uses: php-actions/phpunit@v3
         with:
           php_version: ${{ matrix.php-versions }}
