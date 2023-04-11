@@ -10,13 +10,17 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  tests:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-versions: ['5.6', '7.0', '7.1', '7.2', '7.3', '7.4']
+    name: PHP ${{ matrix.php-versions }}
     steps:
       - uses: actions/checkout@v3
       - uses: php-actions/composer@v6
-
-  run:
-    run-on: ubuntu-latest
-    steps:
+        with:
+          php-version: ${{ matrix.php-versions }}
       - uses: php-actions/phpunit@v3
+        with:
+          php-version: ${{ matrix.php-versions }}
