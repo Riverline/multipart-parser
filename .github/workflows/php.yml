@@ -21,7 +21,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php_version: ${{ matrix.php-versions }}
+          php-version: ${{ matrix.php-versions }}
           tools: composer
       - name: Install vendors
         run: composer install
