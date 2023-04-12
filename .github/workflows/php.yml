@@ -18,10 +18,12 @@ jobs:
     name: PHP ${{ matrix.php-versions }}
     steps:
       - uses: actions/checkout@v3
-      - uses: php-actions/composer@v6
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
         with:
           php_version: ${{ matrix.php-versions }}
-          version: 1.x
-      - run: phpunit --bootstrap vendor/autoload.php tests
-        with:
-          php_version: ${{ matrix.php-versions }}
+          tools: composer
+      - name: Install vendors
+        run: composer install
+      - name: Run tests
+        run: phpunit --bootstrap vendor/autoload.php tests
