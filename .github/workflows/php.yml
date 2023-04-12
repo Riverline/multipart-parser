@@ -26,4 +26,4 @@ jobs:
       - name: Install vendors
         run: composer install
       - name: Run tests
-        run: phpunit --bootstrap vendor/autoload.php tests
+        run: vendor/bin/phpunit --bootstrap vendor/autoload.php tests
