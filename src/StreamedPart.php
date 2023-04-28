@@ -180,11 +180,11 @@ class StreamedPart
      */
     public function isMultiPart()
     {
-        return ('multipart' === mb_strstr(
+        return ('multipart' === mb_strtolower(mb_strstr(
             self::getHeaderValue($this->getHeader('Content-Type')),
             '/',
             true
-        ));
+        )));
     }
 
     /**

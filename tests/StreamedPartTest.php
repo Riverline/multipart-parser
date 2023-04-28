@@ -292,4 +292,15 @@ class StreamedPartTest extends TestCase
         self::assertEquals('This is the content', $parts[0]->getBody());
         self::assertEquals('This is the côntént', $parts[1]->getBody());
     }
+
+    /**
+     * Test capitalized content type like "Multipart/Related"
+     */
+    public function testCapitalized()
+    {
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/capitalized_multipart.txt', 'r'));
+
+        self::assertTrue($part->isMultiPart());
+    }
+
 }
