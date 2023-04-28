@@ -1,0 +1,16 @@
+server: nginx
+content-type: Multipart/Related; boundary="----=_Part_38_1747705778.1682694328571"; type="application/xop+xml"; start-info="text/xml"
+accept: text/xml, text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2
+cache-control: no-cache, no-store, max-age=0, must-revalidate
+
+------=_Part_38_1747705778.1682694328571
+Content-Type: text/xml
+
+<root>
+  <person>
+    <name>John Doe</name>
+    <age>25</age>
+    <city>New York</city>
+  </person>
+</root>
+------=_Part_38_1747705778.1682694328571--
