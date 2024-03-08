@@ -22,6 +22,11 @@ class StreamedPart
     private $stream;
 
     /**
+     * @var bool
+     */
+    private $strict;
+
+    /**
      * @var array
      */
     private $headers;
@@ -40,14 +45,16 @@ class StreamedPart
      * StreamParser constructor.
      *
      * @param resource $stream
+     * @param bool     $strict Enable stricter parsing
      */
-    public function __construct($stream)
+    public function __construct($stream, $strict = false)
     {
         if (false === is_resource($stream)) {
             throw new \InvalidArgumentException('Input is not a stream');
         }
 
         $this->stream = $stream;
+        $this->strict = $strict;
 
         // Reset the stream
         rewind($this->stream);
@@ -122,7 +129,7 @@ class StreamedPart
         // Is MultiPart ?
         if ($this->isMultiPart()) {
             // MultiPart !
-            $boundary = self::getHeaderOption($this->getHeader('Content-Type'), 'boundary');
+            $boundary = self::getHeaderOption($this->getHeader('Content-Type'), 'boundary', null, $this->strict);
 
             if (null === $boundary) {
                 throw new \InvalidArgumentException("Can't find boundary in content type");
@@ -146,7 +153,7 @@ class StreamedPart
                         // Copy part in a new stream
                         $partStream = fopen('php://temp', 'rw');
                         stream_copy_to_stream($this->stream, $partStream, $partLength, $partOffset);
-                        $this->parts[] = new self($partStream);
+                        $this->parts[] = new self($partStream, $this->strict);
                         // Reset current stream offset
                         fseek($this->stream, $currentOffset);
                     }
@@ -181,7 +188,7 @@ class StreamedPart
     public function isMultiPart()
     {
         return ('multipart' === mb_strtolower(mb_strstr(
-            self::getHeaderValue($this->getHeader('Content-Type')),
+            self::getHeaderValue($this->getHeader('Content-Type'), $this->strict),
             '/',
             true
         )));
@@ -215,7 +222,7 @@ class StreamedPart
         if (false === in_array($encoding, array('binary', '7bit'))) {
             // Charset
             $contentType = $this->getHeader('Content-Type');
-            $charset = self::getHeaderOption($contentType, 'charset');
+            $charset = self::getHeaderOption($contentType, 'charset', null, $this->strict);
             if (null === $charset) {
                 // Try to detect
                 $charset = mb_detect_encoding($body) ?: 'utf-8';
@@ -259,24 +266,26 @@ class StreamedPart
 
     /**
      * @param string $header
+     * @param bool   $strict
      *
      * @return string
      */
-    public static function getHeaderValue($header)
+    public static function getHeaderValue($header, $strict = false)
     {
-        list($value) = self::parseHeaderContent($header);
+        list($value) = self::parseHeaderContent($header, $strict);
 
         return $value;
     }
 
     /**
      * @param string $header
+     * @param bool   $strict
      *
      * @return array
      */
-    public static function getHeaderOptions($header)
+    public static function getHeaderOptions($header, $strict)
     {
-        list(, $options) = self::parseHeaderContent($header);
+        list(, $options) = self::parseHeaderContent($header, $strict);
 
         return $options;
     }
@@ -284,14 +293,14 @@ class StreamedPart
     /**
      * @param string $header
      * @param string $key
-     *
      * @param mixed  $default
+     * @param bool   $strict
      *
      * @return mixed
      */
-    public static function getHeaderOption($header, $key, $default = null)
+    public static function getHeaderOption($header, $key, $default = null, $strict = false)
     {
-        $options = self::getHeaderOptions($header);
+        $options = self::getHeaderOptions($header, $strict);
 
         if (false === isset($options[$key])) {
             return $default;
@@ -308,7 +317,7 @@ class StreamedPart
         // Find Content-Disposition
         $contentType = $this->getHeader('Content-Type');
 
-        return self::getHeaderValue($contentType) ?: 'application/octet-stream';
+        return self::getHeaderValue($contentType, $this->strict) ?: 'application/octet-stream';
     }
 
     /**
@@ -319,7 +328,7 @@ class StreamedPart
         // Find Content-Disposition
         $contentDisposition = $this->getHeader('Content-Disposition');
 
-        return self::getHeaderOption($contentDisposition, 'name');
+        return self::getHeaderOption($contentDisposition, 'name', null, $this->strict);
     }
 
     /**
@@ -330,7 +339,7 @@ class StreamedPart
         // Find Content-Disposition
         $contentDisposition = $this->getHeader('Content-Disposition');
 
-        return self::getHeaderOption($contentDisposition, 'filename');
+        return self::getHeaderOption($contentDisposition, 'filename', null, $this->strict);
     }
 
     /**
@@ -377,10 +386,11 @@ class StreamedPart
 
     /**
      * @param string $content
+     * @param bool $strict
      *
      * @return array
      */
-    private static function parseHeaderContent($content)
+    private static function parseHeaderContent($content, $strict)
     {
         $parts = explode(';', (string) $content);
         $headerValue = array_shift($parts);
@@ -399,6 +409,13 @@ class StreamedPart
                             $value,
                             $matches
                         )) {
+                            // In strict mode, we don't allow malformed headers that could have a very long length.
+                            // Indeed, in HTTP contexts these could be used for DoS attacks by slowing down the parsing,
+                            // especially since the `mb_convert_encoding()` call below can be slow with long strings.
+                            if ($strict && strlen($matches['value']) > 1000) {
+                                throw new \InvalidArgumentException("Malformed header '$key': header value is too long");
+                            }
+
                             $value = mb_convert_encoding(
                                 rawurldecode($matches['value']),
                                 'utf-8',

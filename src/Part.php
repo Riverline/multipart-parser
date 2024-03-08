@@ -22,15 +22,16 @@ class Part extends StreamedPart
      * MultiPart constructor.
      *
      * @param string $content
+     * @param bool   $strict Enable stricter parsing
      *
      * @throws \InvalidArgumentException
      */
-    public function __construct($content)
+    public function __construct($content, $strict = false)
     {
         $stream = fopen('php://temp', 'rw');
         fwrite($stream, $content);
         rewind($stream);
 
-        parent::__construct($stream);
+        parent::__construct($stream, $strict);
     }
 }
