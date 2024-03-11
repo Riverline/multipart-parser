@@ -232,34 +232,9 @@ class StreamedPartTest extends TestCase
     }
 
     /**
-     * Test reading header options with very long values
+     * Test reading headers with very long values that could cause a DoS or DoW
      */
-    public function testInvalidHeaderOptionsAreAcceptedByDefault()
-    {
-        $content = "Content-Type: multipart/related; boundary=delimiter\n".
-            "\n" .
-            "--delimiter\n" .
-            "Content-Disposition: form-data; malformed=" . str_repeat('a', 10000) . "\n" .
-            "\n" .
-            "Content\n" .
-            "--delimiter--";
-        $stream = fopen('php://temp', 'rw');
-        fwrite($stream, $content);
-        rewind($stream);
-
-        $part = new StreamedPart($stream);
-
-        $parts = $part->getParts();
-        $header = $parts[0]->getHeader('Content-Disposition');
-
-        self::assertEquals('form-data', StreamedPart::getHeaderValue($header));
-        self::assertEquals(str_repeat('a', 10000), StreamedPart::getHeaderOption($header, 'malformed'));
-    }
-
-    /**
-     * Test reading header options with very long values in strict mode
-     */
-    public function testInvalidHeaderOptionsAreRejectedInStrictMode()
+    public function testInvalidHeadersAreRejected()
     {
         $content = "Content-Type: multipart/form-data; boundary=a\n".
             "\n" .
@@ -272,8 +247,8 @@ class StreamedPartTest extends TestCase
         rewind($stream);
 
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage("Malformed header ' ': header value is too long");
-        new StreamedPart($stream, true);
+        $this->expectExceptionMessage('Malformed header: header value is too long');
+        new StreamedPart($stream);
     }
 
     /**

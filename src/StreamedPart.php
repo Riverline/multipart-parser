@@ -22,11 +22,6 @@ class StreamedPart
     private $stream;
 
     /**
-     * @var bool
-     */
-    private $strict;
-
-    /**
      * @var array
      */
     private $headers;
@@ -45,16 +40,14 @@ class StreamedPart
      * StreamParser constructor.
      *
      * @param resource $stream
-     * @param bool     $strict Enable stricter parsing
      */
-    public function __construct($stream, $strict = false)
+    public function __construct($stream)
     {
         if (false === is_resource($stream)) {
             throw new \InvalidArgumentException('Input is not a stream');
         }
 
         $this->stream = $stream;
-        $this->strict = $strict;
 
         // Reset the stream
         rewind($this->stream);
@@ -99,6 +92,13 @@ class StreamedPart
 
         $this->headers = [];
         foreach ($headerLines as $line) {
+            // We don't allow malformed headers that could have a very long length.
+            // Indeed, in HTTP contexts these could be used for DoS/DoW attacks by slowing down the parsing.
+            // Most web server allow a maximum of 8192 characters for an header line, so we'll use that value.
+            if (strlen($line) > 8192) {
+                throw new \InvalidArgumentException('Malformed header: header value is too long');
+            }
+
             $lineSplit = explode(':', $line, 2);
 
             if (2 === count($lineSplit)) {
@@ -129,7 +129,7 @@ class StreamedPart
         // Is MultiPart ?
         if ($this->isMultiPart()) {
             // MultiPart !
-            $boundary = self::getHeaderOption($this->getHeader('Content-Type'), 'boundary', null, $this->strict);
+            $boundary = self::getHeaderOption($this->getHeader('Content-Type'), 'boundary');
 
             if (null === $boundary) {
                 throw new \InvalidArgumentException("Can't find boundary in content type");
@@ -153,7 +153,7 @@ class StreamedPart
                         // Copy part in a new stream
                         $partStream = fopen('php://temp', 'rw');
                         stream_copy_to_stream($this->stream, $partStream, $partLength, $partOffset);
-                        $this->parts[] = new self($partStream, $this->strict);
+                        $this->parts[] = new self($partStream);
                         // Reset current stream offset
                         fseek($this->stream, $currentOffset);
                     }
@@ -188,7 +188,7 @@ class StreamedPart
     public function isMultiPart()
     {
         return ('multipart' === mb_strtolower(mb_strstr(
-            self::getHeaderValue($this->getHeader('Content-Type'), $this->strict),
+            self::getHeaderValue($this->getHeader('Content-Type')),
             '/',
             true
         )));
@@ -222,7 +222,7 @@ class StreamedPart
         if (false === in_array($encoding, array('binary', '7bit'))) {
             // Charset
             $contentType = $this->getHeader('Content-Type');
-            $charset = self::getHeaderOption($contentType, 'charset', null, $this->strict);
+            $charset = self::getHeaderOption($contentType, 'charset');
             if (null === $charset) {
                 // Try to detect
                 $charset = mb_detect_encoding($body) ?: 'utf-8';
@@ -266,26 +266,24 @@ class StreamedPart
 
     /**
      * @param string $header
-     * @param bool   $strict
      *
      * @return string
      */
-    public static function getHeaderValue($header, $strict = false)
+    public static function getHeaderValue($header)
     {
-        list($value) = self::parseHeaderContent($header, $strict);
+        list($value) = self::parseHeaderContent($header);
 
         return $value;
     }
 
     /**
      * @param string $header
-     * @param bool   $strict
      *
      * @return array
      */
-    public static function getHeaderOptions($header, $strict)
+    public static function getHeaderOptions($header)
     {
-        list(, $options) = self::parseHeaderContent($header, $strict);
+        list(, $options) = self::parseHeaderContent($header);
 
         return $options;
     }
@@ -293,14 +291,14 @@ class StreamedPart
     /**
      * @param string $header
      * @param string $key
+     *
      * @param mixed  $default
-     * @param bool   $strict
      *
      * @return mixed
      */
-    public static function getHeaderOption($header, $key, $default = null, $strict = false)
+    public static function getHeaderOption($header, $key, $default = null)
     {
-        $options = self::getHeaderOptions($header, $strict);
+        $options = self::getHeaderOptions($header);
 
         if (false === isset($options[$key])) {
             return $default;
@@ -317,7 +315,7 @@ class StreamedPart
         // Find Content-Disposition
         $contentType = $this->getHeader('Content-Type');
 
-        return self::getHeaderValue($contentType, $this->strict) ?: 'application/octet-stream';
+        return self::getHeaderValue($contentType) ?: 'application/octet-stream';
     }
 
     /**
@@ -328,7 +326,7 @@ class StreamedPart
         // Find Content-Disposition
         $contentDisposition = $this->getHeader('Content-Disposition');
 
-        return self::getHeaderOption($contentDisposition, 'name', null, $this->strict);
+        return self::getHeaderOption($contentDisposition, 'name');
     }
 
     /**
@@ -339,7 +337,7 @@ class StreamedPart
         // Find Content-Disposition
         $contentDisposition = $this->getHeader('Content-Disposition');
 
-        return self::getHeaderOption($contentDisposition, 'filename', null, $this->strict);
+        return self::getHeaderOption($contentDisposition, 'filename');
     }
 
     /**
@@ -386,11 +384,10 @@ class StreamedPart
 
     /**
      * @param string $content
-     * @param bool $strict
      *
      * @return array
      */
-    private static function parseHeaderContent($content, $strict)
+    private static function parseHeaderContent($content)
     {
         $parts = explode(';', (string) $content);
         $headerValue = array_shift($parts);
@@ -409,13 +406,6 @@ class StreamedPart
                             $value,
                             $matches
                         )) {
-                            // In strict mode, we don't allow malformed headers that could have a very long length.
-                            // Indeed, in HTTP contexts these could be used for DoS attacks by slowing down the parsing,
-                            // especially since the `mb_convert_encoding()` call below can be slow with long strings.
-                            if ($strict && strlen($matches['value']) > 1000) {
-                                throw new \InvalidArgumentException("Malformed header '$key': header value is too long");
-                            }
-
                             $value = mb_convert_encoding(
                                 rawurldecode($matches['value']),
                                 'utf-8',
