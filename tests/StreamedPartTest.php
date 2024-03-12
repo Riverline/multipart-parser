@@ -232,6 +232,26 @@ class StreamedPartTest extends TestCase
     }
 
     /**
+     * Test reading headers with very long values that could cause a DoS or DoW
+     */
+    public function testInvalidHeadersAreRejected()
+    {
+        $content = "Content-Type: multipart/form-data; boundary=a\n".
+            "\n" .
+            "--a\n" .
+            "Content-Disposition: form-data; name=\"0\";\n" .
+            "Content-Type: ; *=auto''" . str_repeat('a', 10000) .
+            "\r\n\r\n\r\n--a--\r\n";
+        $stream = fopen('php://temp', 'rw');
+        fwrite($stream, $content);
+        rewind($stream);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Malformed header: header value is too long');
+        new StreamedPart($stream);
+    }
+
+    /**
      * Test file helper
      */
     public function testFileHelper()

@@ -92,6 +92,13 @@ class StreamedPart
 
         $this->headers = [];
         foreach ($headerLines as $line) {
+            // We don't allow malformed headers that could have a very long length.
+            // Indeed, in HTTP contexts these could be used for DoS/DoW attacks by slowing down the parsing.
+            // Most web server allow a maximum of 8192 characters for an header line, so we'll use that value.
+            if (strlen($line) > 8192) {
+                throw new \InvalidArgumentException('Malformed header: header value is too long');
+            }
+
             $lineSplit = explode(':', $line, 2);
 
             if (2 === count($lineSplit)) {
