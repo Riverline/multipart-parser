@@ -19,30 +19,62 @@ use Riverline\MultiPartParser\StreamedPart;
 class Globals
 {
     /**
-     * @param bool|resource $input
+     * @param resource|null $input
      *
      * @return StreamedPart
      */
-    public static function convert($input = STDIN)
+    public static function convert($input = null)
     {
         $stream = fopen('php://temp', 'rw');
 
-        foreach ($_SERVER as $key => $value) {
-            if (0 === strpos($key, 'HTTP_')) {
-                $key = str_replace('_', '-', strtolower(substr($key, 5)));
-                fwrite($stream, "$key: $value\r\n");
-            } elseif (in_array($key, ['CONTENT_LENGTH', 'CONTENT_MD5', 'CONTENT_TYPE'])) {
-                $key = str_replace('_', '-', strtolower($key));
-                fwrite($stream, "$key: $value\r\n");
-            }
-        }
+        self::writeRequestHeadersToStream($stream);
 
         fwrite($stream, "\r\n");
 
-        stream_copy_to_stream($input, $stream);
+        $inputStream = self::getInputStreamByInput($input);
 
+        stream_copy_to_stream($inputStream, $stream);
         rewind($stream);
 
         return new StreamedPart($stream);
+    }
+
+    static private function writeRequestHeadersToStream($stream)
+    {
+        $headers = getallheaders();
+
+        foreach ($headers as $key => $value) {
+            fwrite($stream, "$key: $value\r\n");
+        }
+    }
+
+    /**
+     * @param resource|null $input
+     * @return resource
+     */
+    static private function getInputStreamByInput($input = null)
+    {
+        if (is_resource($input)) {
+            return $input;
+        }
+
+        return self::getDefaultStream();
+    }
+
+    static private function getDefaultStream()
+    {
+        $filename = self::getDefaultRequestStreamFilename();
+
+        return fopen($filename, 'r');
+    }
+
+    static private function getDefaultRequestStreamFilename()
+    {
+        return self::isCliSapi() ? 'php://stdin' : 'php://input';
+    }
+
+    static private function isCliSapi()
+    {
+        return strpos(PHP_SAPI, 'cli') !== false;
     }
 }
