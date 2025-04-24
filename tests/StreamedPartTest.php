@@ -171,6 +171,16 @@ class StreamedPartTest extends TestCase
         self::assertEquals('rfc', $parts[2]->getBody());
     }
 
+    public function testBinaryFile()
+    {
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/binary_file.txt', 'rb'));
+
+        self::assertEquals(
+            "\x52\x49\x46\x46\x24\x00\x00\x00\x57\x41\x56\x45\x66\x6d\x74\x20\x10\x00\x00\x00\x01\x00\x01\x00\x44\xac\x00\x00\x88\x58\x01\x00\x02\x00\x10\x00\x64\x61\x74\x61\x00\x00\x00\x00",
+            $part->getParts()[0]->getBody()
+        );
+    }
+
     /**
      * Test multi line header
      */

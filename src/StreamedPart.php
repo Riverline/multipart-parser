@@ -218,6 +218,11 @@ class StreamedPart
                 break;
         }
 
+        // Don't try to fix the encoding when it's a file
+        if ('' === $encoding && $this->isFile()) {
+            return $body;
+        }
+
         // Convert to UTF-8 ( Not if binary or 7bit ( aka Ascii ) )
         if (false === in_array($encoding, array('binary', '7bit'))) {
             // Charset
