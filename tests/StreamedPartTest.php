@@ -308,7 +308,7 @@ class StreamedPartTest extends TestCase
         $part = new StreamedPart(fopen(__DIR__ . '/_data/quoted_printable.txt', 'r'));
 
         self::assertTrue($part->isMultiPart());
-        self::assertEquals('Добро_пожаловать_на Site.ru', $part->getHeader('Subject'));
+        self::assertEquals('mûltîpàrt', $part->getHeader('Subject'));
 
         /** @var Part[] $parts */
         $parts = $part->getParts();
