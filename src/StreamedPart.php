@@ -208,7 +208,7 @@ class StreamedPart
         $body = stream_get_contents($this->stream, -1, $this->bodyOffset);
 
         // Decode
-        $encoding = strtolower((string) $this->getHeader('Content-Transfer-Encoding'));
+        $encoding = strtolower((string) $this->getHeader('Content-Transfer-Encoding', '7bit'));
         switch ($encoding) {
             case 'base64':
                 $body = base64_decode($body);
