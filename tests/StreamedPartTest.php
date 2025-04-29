@@ -81,7 +81,7 @@ class StreamedPartTest extends TestCase
      */
     public function testCantGetBodyForAMultiPartMessage()
     {
-        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'rb'));
 
         self::assertTrue($part->isMultiPart());
 
@@ -158,7 +158,7 @@ class StreamedPartTest extends TestCase
      */
     public function testSimpleMultiPart()
     {
-        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'rb'));
 
         self::assertTrue($part->isMultiPart());
         self::assertCount(3, $part->getParts());
@@ -167,18 +167,12 @@ class StreamedPartTest extends TestCase
         $parts = $part->getParts();
 
         self::assertEquals('image/png', $parts[0]->getMimeType());
+        self::assertEquals(
+            "\x89\x50\x4e\x47\x0d\x0a\x1a\x0a\x00\x00\x00\x0d\x49\x48\x44\x52\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\x0a\x49\x44\x41\x54\x78\x9c\x63\x00\x01\x00\x00\x05\x00\x01",
+            $parts[0]->getBody()
+        );
         self::assertEquals('bar', $parts[1]->getBody());
         self::assertEquals('rfc', $parts[2]->getBody());
-    }
-
-    public function testBinaryFile()
-    {
-        $part = new StreamedPart(fopen(__DIR__ . '/_data/binary_file.txt', 'rb'));
-
-        self::assertEquals(
-            "\x52\x49\x46\x46\x24\x00\x00\x00\x57\x41\x56\x45\x66\x6d\x74\x20\x10\x00\x00\x00\x01\x00\x01\x00\x44\xac\x00\x00\x88\x58\x01\x00\x02\x00\x10\x00\x64\x61\x74\x61\x00\x00\x00\x00",
-            $part->getParts()[0]->getBody()
-        );
     }
 
     /**
@@ -186,7 +180,7 @@ class StreamedPartTest extends TestCase
      */
     public function testMultiLineHeader()
     {
-        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'rb'));
 
         self::assertEquals('line one line two with space line three with tab', $part->getHeader('X-Multi-Line'));
     }
@@ -196,7 +190,7 @@ class StreamedPartTest extends TestCase
      */
     public function testFilterByName()
     {
-        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'rb'));
 
         self::assertCount(1, $part->getPartsByName('foo'));
     }
@@ -206,7 +200,7 @@ class StreamedPartTest extends TestCase
      */
     public function testPartContent()
     {
-        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'rb'));
 
         $foo = $part->getPartsByName('foo');
 
@@ -218,7 +212,7 @@ class StreamedPartTest extends TestCase
      */
     public function testRFC5987Header()
     {
-        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'rb'));
 
         $parts = $part->getParts();
         $header = $parts[2]->getHeader('Content-Disposition');
@@ -232,7 +226,7 @@ class StreamedPartTest extends TestCase
      */
     public function testHeaderHelpers()
     {
-        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'rb'));
 
         $parts = $part->getParts();
         $header = $parts[1]->getHeader('Content-Disposition');
@@ -266,7 +260,7 @@ class StreamedPartTest extends TestCase
      */
     public function testFileHelper()
     {
-        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'r'));
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'rb'));
 
         $parts = $part->getParts();
 

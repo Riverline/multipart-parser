@@ -26,10 +26,8 @@ abstract class Commun extends TestCase
     {
         $content = file_get_contents(__DIR__ . '/../_data/simple_multipart.txt');
 
-        list(, $body) = preg_split("/(\r\n){2}/", $content, 2);
-
-        $stream = fopen('php://temp', 'rw');
-        fwrite($stream, $body);
+        $stream = fopen('php://temp', 'rwb');
+        fwrite($stream, $content);
 
         rewind($stream);
 

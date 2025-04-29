@@ -208,7 +208,7 @@ class StreamedPart
         $body = stream_get_contents($this->stream, -1, $this->bodyOffset);
 
         // Decode
-        $encoding = strtolower((string) $this->getHeader('Content-Transfer-Encoding'));
+        $encoding = strtolower((string) $this->getHeader('Content-Transfer-Encoding', '7bit'));
         switch ($encoding) {
             case 'base64':
                 $body = base64_decode($body);
@@ -216,11 +216,6 @@ class StreamedPart
             case 'quoted-printable':
                 $body = quoted_printable_decode($body);
                 break;
-        }
-
-        // Don't try to fix the encoding when it's a file
-        if ('' === $encoding && $this->isFile()) {
-            return $body;
         }
 
         // Convert to UTF-8 ( Not if binary or 7bit ( aka Ascii ) )
