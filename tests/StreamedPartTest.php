@@ -301,6 +301,24 @@ class StreamedPartTest extends TestCase
     }
 
     /**
+     * Test binary file with base64 encoding
+     */
+    public function testBase64WithOctetStream()
+    {
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/binary_base64.txt', 'r'));
+
+        self::assertTrue($part->isMultiPart());
+
+        /** @var Part[] $parts */
+        $parts = $part->getParts();
+
+        self::assertCount(2, $parts);
+        self::assertEquals('bar', $parts[0]->getBody());
+        self::assertEquals('test.bin', $parts[1]->getFileName());
+        self::assertEquals(hex2bin('6566ffff'), $parts[1]->getBody());
+    }
+
+    /**
      * Test a quoted printable decoding
      */
     public function testQuotedPrintable()
