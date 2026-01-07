@@ -218,10 +218,12 @@ class StreamedPart
                 break;
         }
 
+        $contentType = $this->getHeader('Content-Type');
+        $isBinary = strtolower($contentType) === 'application/octet-stream';
+
         // Convert to UTF-8 ( Not if binary or 7bit ( aka Ascii ) )
-        if (false === in_array($encoding, array('binary', '7bit'))) {
+        if (! $isBinary && false === in_array($encoding, array('binary', '7bit'))) {
             // Charset
-            $contentType = $this->getHeader('Content-Type');
             $charset = self::getHeaderOption($contentType, 'charset');
             if (null === $charset) {
                 // Try to detect

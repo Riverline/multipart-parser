@@ -1,0 +1,21 @@
+User-Agent: curl/7.21.2 (x86_64-apple-darwin)
+Host: localhost:8080
+Accept: */*
+Content-Length: 1143
+Expect: 100-continue
+X-Multi-Line: line one
+    line two with space
+	line three with tab
+Content-Type: multipart/form-data; boundary=----------------------------83ff53821b7c
+
+------------------------------83ff53821b7c
+Content-Disposition: form-data; name="foo"
+
+bar
+------------------------------83ff53821b7c
+Content-Type: Application/octet-stream
+Content-Disposition: attachment; filename="test.bin"
+Content-Transfer-Encoding: base64
+
+ZWb//w==
+------------------------------83ff53821b7c--
