@@ -219,7 +219,7 @@ class StreamedPart
         }
 
         $contentType = $this->getHeader('Content-Type');
-        $isBinary = strtolower($contentType) === 'application/octet-stream';
+        $isBinary = strtolower((string) $contentType) === 'application/octet-stream';
 
         // Convert to UTF-8 ( Not if binary or 7bit ( aka Ascii ) )
         if (! $isBinary && false === in_array($encoding, array('binary', '7bit'))) {
