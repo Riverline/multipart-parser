@@ -345,4 +345,54 @@ class StreamedPartTest extends TestCase
         self::assertTrue($part->isMultiPart());
     }
 
+    /**
+     * Test multipart with missing Content-Type header in parts (PHP 8.4 compatibility)
+     * This reproduces the scenario where text form fields don't include Content-Type headers
+     */
+    public function testMissingContentTypeHeader()
+    {
+        // Create multipart content similar to standard browser form submissions
+        $content = "Content-Type: multipart/form-data; boundary=----WebKitFormBoundary\r\n";
+        $content .= "\r\n";
+        $content .= "------WebKitFormBoundary\r\n";
+        $content .= "Content-Disposition: form-data; name=\"title\"\r\n";
+        $content .= "\r\n";
+        $content .= "Hello World\r\n";
+        $content .= "------WebKitFormBoundary\r\n";
+        $content .= "Content-Disposition: form-data; name=\"description\"\r\n";
+        $content .= "\r\n";
+        $content .= "Test description\r\n";
+        $content .= "------WebKitFormBoundary\r\n";
+        $content .= "Content-Disposition: form-data; name=\"image\"; filename=\"photo.png\"\r\n";
+        $content .= "Content-Type: image/png\r\n";
+        $content .= "\r\n";
+        $content .= "image data\r\n";
+        $content .= "------WebKitFormBoundary--\r\n";
+
+        $stream = fopen('php://temp', 'rw');
+        fwrite($stream, $content);
+        rewind($stream);
+
+        $part = new StreamedPart($stream);
+
+        self::assertTrue($part->isMultiPart());
+        self::assertCount(3, $part->getParts());
+
+        $parts = $part->getParts();
+
+        // First part without Content-Type header should work without errors
+        self::assertEquals('title', $parts[0]->getName());
+        self::assertEquals('Hello World', $parts[0]->getBody());
+
+        // Second part without Content-Type header should also work
+        self::assertEquals('description', $parts[1]->getName());
+        self::assertEquals('Test description', $parts[1]->getBody());
+
+        // Third part with Content-Type header should work as before
+        self::assertEquals('image', $parts[2]->getName());
+        self::assertTrue($parts[2]->isFile());
+        self::assertEquals('image/png', $parts[2]->getMimeType());
+        self::assertEquals('image data', $parts[2]->getBody());
+    }
+
 }
