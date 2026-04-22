@@ -240,6 +240,56 @@ class StreamedPart
     }
 
     /**
+     * @return resource
+     */
+    public function getBodyStream()
+    {
+        if ($this->isMultiPart()) {
+            throw new \LogicException("MultiPart content, there aren't body");
+        }
+
+        $partStream = fopen('php://temp', 'rb+');
+        stream_copy_to_stream($this->stream, $partStream, -1, $this->bodyOffset);
+        rewind($partStream);
+
+        // Decode
+        $encoding = strtolower((string) $this->getHeader('Content-Transfer-Encoding', '7bit'));
+        switch ($encoding) {
+            case 'base64':
+                stream_filter_append($partStream, 'convert.base64-decode');
+                break;
+            case 'quoted-printable':
+                stream_filter_append($partStream, 'convert.quoted-printable-decode');
+                break;
+        }
+
+        $contentType = $this->getHeader('Content-Type');
+        $isBinary = strtolower((string) $contentType) === 'application/octet-stream';
+
+        // Convert to UTF-8 ( Not if binary or 7bit ( aka Ascii ) )
+        if (! $isBinary && false === in_array($encoding, array('binary', '7bit'))) {
+            // Charset
+            $charset = self::getHeaderOption($contentType, 'charset');
+            if (null === $charset) {
+                // Fallback to getBody() function wrapped in a stream
+                \fclose($partStream);
+                $partStream = fopen('php://memory', 'rb+');
+                fwrite($partStream, $this->getBody());
+                rewind($partStream);
+
+                return $partStream;
+            }
+
+            // Only convert if not UTF-8
+            if ('utf-8' !== strtolower($charset)) {
+                stream_filter_append($partStream, "convert.iconv.$charset/UTF-8");
+            }
+        }
+
+        return $partStream;
+    }
+
+    /**
      * @return array
      */
     public function getHeaders()
