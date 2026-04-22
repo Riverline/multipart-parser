@@ -346,6 +346,117 @@ class StreamedPartTest extends TestCase
     }
 
     /**
+     * Test that is not possible to get a body stream for a multi part document
+     */
+    public function testCantGetBodyStreamForAMultiPartMessage()
+    {
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'rb'));
+
+        self::assertTrue($part->isMultiPart());
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage("MultiPart content, there aren't body");
+        $part->getBodyStream();
+    }
+
+    /**
+     * Test a document without multipart using getBodyStream()
+     */
+    public function testNoMultiPartBodyStream()
+    {
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/no_multipart.txt', 'r'));
+
+        self::assertFalse($part->isMultiPart());
+
+        $stream = $part->getBodyStream();
+        self::assertIsResource($stream);
+        self::assertEquals('bar', stream_get_contents($stream));
+    }
+
+    /**
+     * Test a simple multipart document using getBodyStream()
+     */
+    public function testSimpleMultiPartBodyStream()
+    {
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/simple_multipart.txt', 'rb'));
+
+        /** @var Part[] $parts */
+        $parts = $part->getParts();
+
+        $stream0 = $parts[0]->getBodyStream();
+        self::assertIsResource($stream0);
+        self::assertEquals(
+            "\x89\x50\x4e\x47\x0d\x0a\x1a\x0a\x00\x00\x00\x0d\x49\x48\x44\x52\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\x0a\x49\x44\x41\x54\x78\x9c\x63\x00\x01\x00\x00\x05\x00\x01",
+            stream_get_contents($stream0)
+        );
+
+        $stream1 = $parts[1]->getBodyStream();
+        self::assertIsResource($stream1);
+        self::assertEquals('bar', stream_get_contents($stream1));
+
+        $stream2 = $parts[2]->getBodyStream();
+        self::assertIsResource($stream2);
+        self::assertEquals('rfc', stream_get_contents($stream2));
+    }
+
+    /**
+     * Test a email document with base64 encoding using getBodyStream()
+     */
+    public function testEmailBase64BodyStream()
+    {
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/email_base64.txt', 'r'));
+
+        /** @var Part[] $parts */
+        $parts = $part->getParts();
+
+        $stream0 = $parts[0]->getBodyStream();
+        self::assertIsResource($stream0);
+        self::assertEquals('This is the content', stream_get_contents($stream0));
+
+        $stream1 = $parts[1]->getBodyStream();
+        self::assertIsResource($stream1);
+        self::assertEquals('This is the côntént', stream_get_contents($stream1));
+    }
+
+    /**
+     * Test binary file with base64 encoding using getBodyStream()
+     */
+    public function testBase64WithOctetStreamBodyStream()
+    {
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/binary_base64.txt', 'r'));
+
+        /** @var Part[] $parts */
+        $parts = $part->getParts();
+
+        $stream0 = $parts[0]->getBodyStream();
+        self::assertIsResource($stream0);
+        self::assertEquals('bar', stream_get_contents($stream0));
+
+        $stream1 = $parts[1]->getBodyStream();
+        self::assertIsResource($stream1);
+        self::assertEquals(hex2bin('6566ffff'), stream_get_contents($stream1));
+    }
+
+    /**
+     * Test a quoted printable decoding using getBodyStream()
+     */
+    public function testQuotedPrintableBodyStream()
+    {
+        $part = new StreamedPart(fopen(__DIR__ . '/_data/quoted_printable.txt', 'r'));
+
+        /** @var Part[] $parts */
+        $parts = $part->getParts();
+
+        $stream0 = $parts[0]->getBodyStream();
+        self::assertIsResource($stream0);
+        self::assertEquals('This is the content', stream_get_contents($stream0));
+
+        $stream1 = $parts[1]->getBodyStream();
+        self::assertIsResource($stream1);
+        self::assertEquals('This is the côntént', stream_get_contents($stream1));
+    }
+
+    /**
      * Test multipart with missing Content-Type header in parts (PHP 8.4 compatibility)
      * This reproduces the scenario where text form fields don't include Content-Type headers
      */
@@ -393,6 +504,48 @@ class StreamedPartTest extends TestCase
         self::assertTrue($parts[2]->isFile());
         self::assertEquals('image/png', $parts[2]->getMimeType());
         self::assertEquals('image data', $parts[2]->getBody());
+    }
+
+    /**
+     * Test multipart with missing Content-Type header using getBodyStream() (PHP 8.4 compatibility)
+     */
+    public function testMissingContentTypeHeaderBodyStream()
+    {
+        $content = "Content-Type: multipart/form-data; boundary=----WebKitFormBoundary\r\n";
+        $content .= "\r\n";
+        $content .= "------WebKitFormBoundary\r\n";
+        $content .= "Content-Disposition: form-data; name=\"title\"\r\n";
+        $content .= "\r\n";
+        $content .= "Hello World\r\n";
+        $content .= "------WebKitFormBoundary\r\n";
+        $content .= "Content-Disposition: form-data; name=\"description\"\r\n";
+        $content .= "\r\n";
+        $content .= "Test description\r\n";
+        $content .= "------WebKitFormBoundary\r\n";
+        $content .= "Content-Disposition: form-data; name=\"image\"; filename=\"photo.png\"\r\n";
+        $content .= "Content-Type: image/png\r\n";
+        $content .= "\r\n";
+        $content .= "image data\r\n";
+        $content .= "------WebKitFormBoundary--\r\n";
+
+        $stream = fopen('php://temp', 'rw');
+        fwrite($stream, $content);
+        rewind($stream);
+
+        $part = new StreamedPart($stream);
+        $parts = $part->getParts();
+
+        $stream0 = $parts[0]->getBodyStream();
+        self::assertIsResource($stream0);
+        self::assertEquals('Hello World', stream_get_contents($stream0));
+
+        $stream1 = $parts[1]->getBodyStream();
+        self::assertIsResource($stream1);
+        self::assertEquals('Test description', stream_get_contents($stream1));
+
+        $stream2 = $parts[2]->getBodyStream();
+        self::assertIsResource($stream2);
+        self::assertEquals('image data', stream_get_contents($stream2));
     }
 
 }
