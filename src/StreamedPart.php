@@ -391,7 +391,31 @@ class StreamedPart
      */
     private static function parseHeaderContent($content)
     {
-        $parts = explode(';', (string) $content);
+        $parts = array();
+        $isQuoted = false;
+        foreach (explode(';', (string) $content) as $part) {
+            // Escaped backslashes and quotes don't count
+            $unescaped = str_replace(array('\\\\', '\\"'), '', $part);
+            $quotes = substr_count($unescaped, '"');
+            if (false === $isQuoted) {
+                $parts[] = $part;
+                // A quoted value that doesn't end in this part
+                $isQuoted = 1 === $quotes && false !== strpos($unescaped, '="');
+            } elseif (0 === $quotes
+                || (1 === $quotes && '"' === substr(rtrim($unescaped), -1))
+            ) {
+                // Semicolon in a quoted value, append to previous part
+                $parts[count($parts)-1] .= ';'.$part;
+                $isQuoted = 0 === $quotes;
+            } else {
+                // Stray quote, stop here
+                break;
+            }
+        }
+        if ($isQuoted) {
+            // Bogus header, a quoted value isn't closed properly
+            $parts = explode(';', (string) $content);
+        }
         $headerValue = array_shift($parts);
         $options = array();
         // Parse options

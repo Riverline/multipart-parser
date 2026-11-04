@@ -236,6 +236,78 @@ class StreamedPartTest extends TestCase
     }
 
     /**
+     * Test semicolons in quoted header options, browsers send them as is
+     */
+    public function testSemicolonsInQuotedHeaderOptions()
+    {
+        $content = "Content-Type: multipart/form-data; boundary=----WebKitFormBoundary\r\n";
+        $content .= "\r\n";
+        $content .= "------WebKitFormBoundary\r\n";
+        $content .= "Content-Disposition: form-data; name=\"foo;bar\"\r\n";
+        $content .= "\r\n";
+        $content .= "Hello World\r\n";
+        $content .= "------WebKitFormBoundary\r\n";
+        $content .= "Content-Disposition: form-data; name=\"file\"; filename=\"report;final.pdf\"\r\n";
+        $content .= "Content-Type: application/pdf\r\n";
+        $content .= "\r\n";
+        $content .= "file data\r\n";
+        $content .= "------WebKitFormBoundary--\r\n";
+
+        $stream = fopen('php://temp', 'rw');
+        fwrite($stream, $content);
+        rewind($stream);
+
+        $part = new StreamedPart($stream);
+        $parts = $part->getParts();
+
+        self::assertEquals('foo;bar', $parts[0]->getName());
+        self::assertEquals('report;final.pdf', $parts[1]->getFileName());
+        self::assertEquals(
+            array('name' => 'file', 'filename' => 'report;final.pdf'),
+            StreamedPart::getHeaderOptions($parts[1]->getHeader('Content-Disposition'))
+        );
+
+        self::assertEquals(';a.txt', StreamedPart::getHeaderOption('form-data; filename=";a.txt"', 'filename'));
+        self::assertEquals('a;b;c.txt', StreamedPart::getHeaderOption('form-data; filename="a;b;c.txt"', 'filename'));
+        self::assertEquals('a;b', StreamedPart::getHeaderOption('form-data; filename="a;b" ; size=100', 'filename'));
+        self::assertEquals('a\";b.txt', StreamedPart::getHeaderOption('form-data; filename="a\";b.txt"', 'filename'));
+        self::assertEquals('a;b\\\\', StreamedPart::getHeaderOption('form-data; filename="a;b\\\\"', 'filename'));
+        self::assertEquals('a;b', StreamedPart::getHeaderOption('form-data; filename="a;b"; size=100"', 'filename'));
+    }
+
+    /**
+     * Test that other semicolons still split the header
+     */
+    public function testOtherSemicolonsInHeaderOptions()
+    {
+        // Escaped quotes in two options
+        $header = 'form-data; name="foo\"bar"; filename="a\"b.txt"';
+        self::assertEquals('foo\"bar', StreamedPart::getHeaderOption($header, 'name'));
+        self::assertEquals('a\"b.txt', StreamedPart::getHeaderOption($header, 'filename'));
+
+        // A quote that is never closed
+        $header = 'form-data; name="foo;bar"; filename="a.txt';
+        self::assertEquals('foo', StreamedPart::getHeaderOption($header, 'name'));
+        self::assertEquals('a.txt', StreamedPart::getHeaderOption($header, 'filename'));
+
+        // Quotes that are not around a value
+        $header = 'attachment; filename=a.txt"; size=100"';
+        self::assertEquals('a.txt', StreamedPart::getHeaderOption($header, 'filename'));
+        self::assertEquals('100', StreamedPart::getHeaderOption($header, 'size'));
+
+        // Text after a closing quote
+        $header = 'form-data; name="foo;bar"baz; size=100"';
+        self::assertEquals('foo', StreamedPart::getHeaderOption($header, 'name'));
+        self::assertEquals('100', StreamedPart::getHeaderOption($header, 'size'));
+
+        // Browsers don't escape backslashes
+        $header = 'form-data; name="foo\"; filename="a.txt"';
+        self::assertEquals('foo\\', StreamedPart::getHeaderOption($header, 'name'));
+        self::assertEquals('a.txt', StreamedPart::getHeaderOption($header, 'filename'));
+        self::assertEquals('a\\', StreamedPart::getHeaderOption('form-data; name="foo\"; filename="a\"', 'filename'));
+    }
+
+    /**
      * Test reading headers with very long values that could cause a DoS or DoW
      */
     public function testInvalidHeadersAreRejected()
