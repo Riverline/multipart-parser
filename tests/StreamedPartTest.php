@@ -590,4 +590,50 @@ class StreamedPartTest extends TestCase
         self::assertEquals('caf?.txt', $part->getFileName());
     }
 
+    /**
+     * Test quoted strings in header options
+     */
+    public function testQuotedHeaderOptions()
+    {
+        $header = 'form-data; name="a;b=c"; filename="say \"hi\".txt"; path="C:\Users\file.txt"; spaces=" x "';
+
+        self::assertEquals('form-data', StreamedPart::getHeaderValue($header));
+        self::assertEquals('a;b=c', StreamedPart::getHeaderOption($header, 'name'));
+        self::assertEquals('say "hi".txt', StreamedPart::getHeaderOption($header, 'filename'));
+        self::assertEquals('C:\Users\file.txt', StreamedPart::getHeaderOption($header, 'path'));
+        self::assertEquals(' x ', StreamedPart::getHeaderOption($header, 'spaces'));
+    }
+
+    /**
+     * Test case-insensitive header options
+     */
+    public function testCaseInsensitiveHeaderOptions()
+    {
+        $content = "Content-Type: multipart/mixed; BOUNDARY=X\r\n\r\n--X\r\n\r\nbody\r\n--X--\r\n";
+
+        $stream = fopen('php://temp', 'rw');
+        fwrite($stream, $content);
+        rewind($stream);
+
+        $part = new StreamedPart($stream);
+
+        self::assertCount(1, $part->getParts());
+        self::assertEquals('X', StreamedPart::getHeaderOption($part->getHeader('Content-Type'), 'Boundary'));
+        self::assertEquals('text/plain', StreamedPart::getHeaderValue('text/plain ; charset=utf-8'));
+    }
+
+    /**
+     * Test that extended options take precedence and RFC 2231 continuations
+     */
+    public function testExtendedHeaderOptions()
+    {
+        $before = "attachment; filename*=UTF-8''r%C3%A9sum%C3%A9.pdf; filename=\"resume.pdf\"";
+        $after = "attachment; filename=\"resume.pdf\"; filename*=UTF-8''r%C3%A9sum%C3%A9.pdf";
+        self::assertEquals('résumé.pdf', StreamedPart::getHeaderOption($before, 'filename'));
+        self::assertEquals('résumé.pdf', StreamedPart::getHeaderOption($after, 'filename'));
+
+        $continuations = "attachment; filename*1*=%C3%A9_long; filename*0*=UTF-8'fr'tr%C3%A8s; filename*2=\" name.pdf\"";
+        self::assertEquals('trèsé_long name.pdf', StreamedPart::getHeaderOption($continuations, 'filename'));
+    }
+
 }

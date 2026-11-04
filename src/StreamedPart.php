@@ -315,6 +315,8 @@ class StreamedPart
     public static function getHeaderOption($header, $key, $default = null)
     {
         $options = self::getHeaderOptions($header);
+        // Case-insensitive key
+        $key = strtolower($key);
 
         if (false === isset($options[$key])) {
             return $default;
@@ -513,43 +515,149 @@ class StreamedPart
     }
 
     /**
+     * Parse a header value and its parameters ( RFC 2045, RFC 2231, RFC 5987 )
+     *
      * @param string $content
      *
      * @return array
      */
     private static function parseHeaderContent($content)
     {
-        $parts = explode(';', (string) $content);
-        $headerValue = array_shift($parts);
+        $segments = self::splitHeaderContent((string) $content);
+        $headerValue = trim(array_shift($segments));
         $options = array();
+        $extendedOptions = array();
+
         // Parse options
-        foreach ($parts as $part) {
-            if (false === empty($part)) {
-                $partSplit = explode('=', $part, 2);
-                if (2 === count($partSplit)) {
-                    list ($key, $value) = $partSplit;
-                    if ('*' === substr($key, -1)) {
-                        // RFC 5987
-                        $key = substr($key, 0, -1);
-                        if (preg_match(
-                            "/(?P<charset>[\w!#$%&+^_`{}~-]+)'(?P<language>[\w-]*)'(?P<value>.*)$/",
-                            $value,
-                            $matches
-                        )) {
-                            $value = rawurldecode($matches['value']);
-                            $converted = self::convertToUtf8($value, $matches['charset']);
-                            // Unsupported charset, keep the bytes but as valid UTF-8
-                            $value = (false !== $converted) ? $converted : self::convertToUtf8($value, 'utf-8');
-                        }
-                    }
-                    $options[trim($key)] = trim($value, ' "');
+        foreach ($segments as $segment) {
+            if ('' === trim($segment)) {
+                continue;
+            }
+
+            $partSplit = explode('=', $segment, 2);
+            // Case-insensitive key
+            $key = strtolower(trim($partSplit[0]));
+
+            if (1 === count($partSplit)) {
+                // Bogus option
+                $options[$key] = '';
+                continue;
+            }
+
+            $value = self::unquote(trim($partSplit[1]));
+
+            if (preg_match('/^(?P<key>[^*]+)\*(?:(?P<section>\d+)(?P<encoded>\*)?)?$/', $key, $matches)) {
+                // Extended option ( key*=, key*0=, key*0*= )
+                if (isset($matches['section']) && '' !== $matches['section']) {
+                    $section = (int) $matches['section'];
+                    $encoded = isset($matches['encoded']) && '' !== $matches['encoded'];
                 } else {
-                    // Bogus option
-                    $options[$partSplit[0]] = '';
+                    $section = 0;
+                    $encoded = true;
                 }
+                $extendedOptions[$matches['key']][$section] = array($value, $encoded);
+            } else {
+                $options[$key] = $value;
             }
         }
 
+        // Extended options take precedence over regular ones ( RFC 6266 )
+        foreach ($extendedOptions as $key => $sections) {
+            $options[$key] = self::decodeExtendedOption($sections);
+        }
+
         return array($headerValue, $options);
+    }
+
+    /**
+     * Split a header content on semicolons, except inside quoted strings
+     *
+     * @param string $content
+     *
+     * @return string[]
+     */
+    private static function splitHeaderContent($content)
+    {
+        $segments = array();
+        $current = '';
+        $inQuotes = false;
+        $length = strlen($content);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $content[$i];
+
+            if ($inQuotes) {
+                if ('\\' === $char && $i + 1 < $length) {
+                    // Quoted pair, keep it as is
+                    $current .= $char.$content[++$i];
+                    continue;
+                }
+                if ('"' === $char) {
+                    $inQuotes = false;
+                }
+            } elseif ('"' === $char) {
+                $inQuotes = true;
+            } elseif (';' === $char) {
+                $segments[] = $current;
+                $current = '';
+                continue;
+            }
+
+            $current .= $char;
+        }
+        $segments[] = $current;
+
+        return $segments;
+    }
+
+    /**
+     * @param string $value
+     *
+     * @return string
+     */
+    private static function unquote($value)
+    {
+        if (strlen($value) < 2 || '"' !== $value[0] || '"' !== substr($value, -1)) {
+            // Not a quoted string, still remove a lone quote as before
+            return trim($value, '"');
+        }
+
+        // Only unescape \" and \\ so Windows paths sent by old browsers are kept
+        return preg_replace('/\\\\(["\\\\])/', '$1', substr($value, 1, -1));
+    }
+
+    /**
+     * Join RFC 2231 continuations and decode the charset of an extended option
+     *
+     * @param array $sections [section => [value, encoded]]
+     *
+     * @return string
+     */
+    private static function decodeExtendedOption(array $sections)
+    {
+        ksort($sections);
+
+        $charset = null;
+        $value = '';
+        foreach ($sections as $index => $section) {
+            list($text, $encoded) = $section;
+
+            if ($encoded) {
+                if (null === $charset
+                    && preg_match("/^(?P<charset>[\w!#$%&+^_`{}~-]*)'(?P<language>[\w-]*)'(?P<value>.*)$/s", $text, $matches)
+                ) {
+                    $charset = $matches['charset'];
+                    $text = $matches['value'];
+                }
+                $text = rawurldecode($text);
+            }
+
+            $value .= $text;
+        }
+
+        $converted = ('' !== (string) $charset) ? self::convertToUtf8($value, $charset) : false;
+
+        // Unsupported or missing charset, keep the bytes but as valid UTF-8
+        return (false !== $converted) ? $converted : self::convertToUtf8($value, 'utf-8');
     }
 }
