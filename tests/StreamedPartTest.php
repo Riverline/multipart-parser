@@ -590,4 +590,76 @@ class StreamedPartTest extends TestCase
         self::assertEquals('caf?.txt', $part->getFileName());
     }
 
+    /**
+     * Test quoted strings in header options
+     */
+    public function testQuotedHeaderOptions()
+    {
+        $header = 'form-data; name="a;b=c"; filename="say \"hi\".txt"; path="\\\\server\\share\\file.txt"; spaces=" x "';
+
+        self::assertEquals('form-data', StreamedPart::getHeaderValue($header));
+        self::assertEquals('a;b=c', StreamedPart::getHeaderOption($header, 'name'));
+        self::assertEquals('say "hi".txt', StreamedPart::getHeaderOption($header, 'filename'));
+        self::assertEquals('\\\\server\\share\\file.txt', StreamedPart::getHeaderOption($header, 'path'));
+        // Spaces are trimmed as before
+        self::assertEquals('x', StreamedPart::getHeaderOption($header, 'spaces'));
+    }
+
+    /**
+     * Test malformed header options, parsed as before
+     */
+    public function testMalformedHeaderOptions()
+    {
+        // Unclosed quote
+        $header = 'attachment; filename="abc; name=x';
+        self::assertEquals(array('filename' => 'abc', 'name' => 'x'), StreamedPart::getHeaderOptions($header));
+
+        // Windows path ending with a backslash
+        $header = 'form-data; filename="C:\\dir\\"; name="f"';
+        self::assertEquals(array('filename' => 'C:\\dir\\', 'name' => 'f'), StreamedPart::getHeaderOptions($header));
+
+        // Garbage after a quoted string
+        $header = 'attachment; filename="a.pdf" junk; name=x';
+        self::assertEquals(array('filename' => 'a.pdf" junk', 'name' => 'x'), StreamedPart::getHeaderOptions($header));
+
+        // Extended option without charset
+        self::assertEquals('abc%20d', StreamedPart::getHeaderOption('attachment; filename*=abc%20d', 'filename'));
+    }
+
+    /**
+     * Test case-insensitive header options
+     */
+    public function testCaseInsensitiveHeaderOptions()
+    {
+        $content = "Content-Type: multipart/mixed; BOUNDARY=X\r\n\r\n--X\r\n\r\nbody\r\n--X--\r\n";
+
+        $stream = fopen('php://temp', 'rw');
+        fwrite($stream, $content);
+        rewind($stream);
+
+        $part = new StreamedPart($stream);
+
+        self::assertCount(1, $part->getParts());
+        self::assertEquals('X', StreamedPart::getHeaderOption($part->getHeader('Content-Type'), 'Boundary'));
+        // Options keep their original case
+        self::assertEquals(array('BOUNDARY' => 'X'), StreamedPart::getHeaderOptions($part->getHeader('Content-Type')));
+        self::assertEquals('text/plain', StreamedPart::getHeaderValue('text/plain ; charset=utf-8'));
+    }
+
+    /**
+     * Test that extended options take precedence and RFC 2231 continuations
+     */
+    public function testExtendedHeaderOptions()
+    {
+        $before = "attachment; filename*=UTF-8''r%C3%A9sum%C3%A9.pdf; filename=\"resume.pdf\"";
+        $after = "attachment; filename=\"resume.pdf\"; filename*=UTF-8''r%C3%A9sum%C3%A9.pdf";
+        self::assertEquals('résumé.pdf', StreamedPart::getHeaderOption($before, 'filename'));
+        self::assertEquals('résumé.pdf', StreamedPart::getHeaderOption($after, 'filename'));
+        $mixedCase = "attachment; FileName*=UTF-8''r%C3%A9sum%C3%A9.pdf; filename=\"resume.pdf\"";
+        self::assertEquals(array('FileName' => 'résumé.pdf'), StreamedPart::getHeaderOptions($mixedCase));
+
+        $continuations = "attachment; filename*1*=%C3%A9_long; filename*0*=UTF-8'fr'tr%C3%A8s; filename*2=\" name.pdf\"";
+        self::assertEquals('trèsé_long name.pdf', StreamedPart::getHeaderOption($continuations, 'filename'));
+    }
+
 }
