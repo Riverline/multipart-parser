@@ -241,19 +241,16 @@ class StreamedPart
     }
 
     /**
-     * Text content: "text/*" or no Content-Type at all ( text/plain by default, RFC 2045 and RFC 7578 )
+     * Text content: "text/*", no Content-Type at all ( text/plain by default, RFC 2045 and RFC 7578 )
+     * or a malformed one, to keep the previous behaviour
      *
      * @return bool
      */
     private function isText()
     {
-        $contentType = $this->getHeader('Content-Type');
+        $mimeType = strtolower(trim(self::getHeaderValue($this->getHeader('Content-Type'))));
 
-        if (null === $contentType) {
-            return true;
-        }
-
-        return 0 === strpos(strtolower(trim(self::getHeaderValue($contentType))), 'text/');
+        return false === strpos($mimeType, '/') || 0 === strpos($mimeType, 'text/');
     }
 
     /**

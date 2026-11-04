@@ -550,6 +550,10 @@ class StreamedPartTest extends TestCase
         );
         self::assertEquals('café', $part->getBody());
 
+        // Malformed Content-Type are still considered as text
+        $part = $this->createPartWithBody("Content-Type: text\r\nContent-Transfer-Encoding: 8bit", "caf\xE9");
+        self::assertTrue(mb_check_encoding($part->getBody(), 'utf-8'));
+
         // A declared charset is used whatever the Content-Type
         $part = $this->createPartWithBody(
             "Content-Type: application/json; charset=ISO-8859-1\r\nContent-Transfer-Encoding: base64",
