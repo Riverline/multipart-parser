@@ -104,7 +104,7 @@ class StreamedPart
             if (2 === count($lineSplit)) {
                 list($key, $value) = $lineSplit;
                 // Decode value
-                $value = mb_decode_mimeheader(trim($value));
+                $value = self::decodeHeaderValue(trim($value));
             } else {
                 // Bogus header
                 $key = $lineSplit[0];
@@ -382,6 +382,120 @@ class StreamedPart
         }
 
         return $parts;
+    }
+
+    /**
+     * Decode RFC 2047 encoded-words and return a valid UTF-8 string
+     *
+     * Text outside encoded-words is kept as is: browsers send non-ASCII names as raw UTF-8 ( RFC 7578 )
+     * and mb_decode_mimeheader() would replace each of their bytes with "?".
+     *
+     * @param string $value
+     *
+     * @return string
+     */
+    private static function decodeHeaderValue($value)
+    {
+        // Bare CR or LF left in an unfolded header line
+        $value = str_replace(array("\r", "\n"), ' ', $value);
+
+        if (false !== strpos($value, '=?')) {
+            // As tolerant as mb_decode_mimeheader(): spaces or "?" in the encoded text, missing "?=" at the end
+            // Whitespace between adjacent encoded-words is kept, like mb_decode_mimeheader() did
+            $value = preg_replace_callback(
+                // Charset may be followed by an RFC 2231 language ( =?UTF-8*fr?Q?...?= )
+                '/=\?([^?\s*]+)(?:\*[^?\s]*)?\?([BbQq])\?(.*?)(?:\?=|$)/',
+                function ($matches) {
+                    if ('b' === strtolower($matches[2])) {
+                        $text = base64_decode(preg_replace('/\s+/', '', $matches[3]));
+                    } else {
+                        $text = quoted_printable_decode(str_replace('_', ' ', $matches[3]));
+                    }
+
+                    if (false !== $text) {
+                        $text = self::convertToUtf8($text, $matches[1]);
+                    }
+
+                    // Keep the encoded-word as is if it can't be decoded
+                    return (false === $text) ? $matches[0] : $text;
+                },
+                $value
+            );
+        }
+
+        // Invalid UTF-8 bytes are replaced with "?"
+        if (false === mb_check_encoding($value, 'utf-8')) {
+            $value = self::convertToUtf8($value, 'utf-8');
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param string $text
+     * @param string $charset
+     *
+     * @return string|false false if the charset is not supported
+     */
+    private static function convertToUtf8($text, $charset)
+    {
+        // PHP < 8 doesn't fail on an unknown charset, it converts from another one
+        // PHP >= 8 throws a ValueError
+        if (false === self::isSupportedCharset($charset)) {
+            return false;
+        }
+
+        return mb_convert_encoding($text, 'utf-8', $charset);
+    }
+
+    /**
+     * @param string $charset
+     *
+     * @return bool
+     */
+    private static function isSupportedCharset($charset)
+    {
+        static $charsets = null;
+
+        if (null === $charsets) {
+            // Not charsets: transfer encodings and mbstring internals ( some are deprecated since PHP 8.2 )
+            $excluded = array(
+                'pass', 'auto', 'wchar', 'byte2be', 'byte2le', 'byte4be', 'byte4le',
+                'base64', 'qprint', 'quoted-printable', 'html-entities', 'uuencode', '7bit', '8bit',
+            );
+
+            // Some encodings have no MIME name and emit a warning, don't let it reach the application error handler
+            set_error_handler(function () {
+                return true;
+            });
+
+            $list = array();
+            try {
+                foreach (mb_list_encodings() as $encoding) {
+                    if (in_array(strtolower($encoding), $excluded, true)) {
+                        continue;
+                    }
+
+                    $names = mb_encoding_aliases($encoding);
+                    $names = is_array($names) ? $names : array();
+                    $names[] = $encoding;
+                    // Shift_JIS, BIG5, ISO-2022-JP...
+                    $names[] = mb_preferred_mime_name($encoding);
+
+                    foreach ($names as $name) {
+                        if (is_string($name) && '' !== $name) {
+                            $list[strtolower($name)] = true;
+                        }
+                    }
+                }
+            } finally {
+                restore_error_handler();
+            }
+
+            $charsets = $list;
+        }
+
+        return isset($charsets[strtolower($charset)]);
     }
 
     /**

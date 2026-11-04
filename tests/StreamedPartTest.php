@@ -395,4 +395,115 @@ class StreamedPartTest extends TestCase
         self::assertEquals('image data', $parts[2]->getBody());
     }
 
+    /**
+     * @param string $headers
+     *
+     * @return StreamedPart
+     */
+    private function createPartFromHeaders($headers)
+    {
+        $stream = fopen('php://temp', 'rw');
+        fwrite($stream, $headers."\r\n\r\nContent");
+        rewind($stream);
+
+        return new StreamedPart($stream);
+    }
+
+    /**
+     * Test raw UTF-8 in headers, it's how browsers send non-ASCII names ( RFC 7578 )
+     */
+    public function testRawUtf8Header()
+    {
+        $part = $this->createPartFromHeaders(
+            "Content-Disposition: form-data; name=\"prénom\"; filename=\"日本語 résumé.png\""
+        );
+
+        self::assertEquals('prénom', $part->getName());
+        self::assertEquals('日本語 résumé.png', $part->getFileName());
+    }
+
+    /**
+     * Test raw UTF-8 next to an encoded-word
+     */
+    public function testRawUtf8NextToEncodedWord()
+    {
+        $part = $this->createPartFromHeaders("Subject: =?UTF-8?B?w6l0w6k=?= et été");
+
+        self::assertEquals('été et été', $part->getHeader('Subject'));
+    }
+
+    /**
+     * Test encoded-words decoding ( RFC 2047 )
+     */
+    public function testEncodedWords()
+    {
+        $part = $this->createPartFromHeaders(
+            "X-Latin1: =?ISO-8859-1?Q?caf=E9_cr=E8me?=\r\n".
+            "X-Lowercase: =?utf-8?q?caf=c3=a9?=\r\n".
+            "X-Mime-Name: =?Shift_JIS?B?k/qWe4zq?=\r\n".
+            "X-Language: =?UTF-8*fr?Q?=C3=A9t=C3=A9?=\r\n".
+            "X-In-Quotes: attachment; filename=\"=?UTF-8?B?w6l0w6kucGRm?=\"\r\n".
+            "X-Separated: =?UTF-8?Q?a?= - =?UTF-8?Q?b?="
+        );
+
+        self::assertEquals('café crème', $part->getHeader('X-Latin1'));
+        self::assertEquals('café', $part->getHeader('X-Lowercase'));
+        self::assertEquals('日本語', $part->getHeader('X-Mime-Name'));
+        self::assertEquals('été', $part->getHeader('X-Language'));
+        self::assertEquals('attachment; filename="été.pdf"', $part->getHeader('X-In-Quotes'));
+        self::assertEquals('a - b', $part->getHeader('X-Separated'));
+    }
+
+    /**
+     * Test malformed encoded-words, decoded as mb_decode_mimeheader() did
+     */
+    public function testMalformedEncodedWords()
+    {
+        $part = $this->createPartFromHeaders(
+            "X-Missing-Padding: =?UTF-8?B?w6l0w6k?=\r\n".
+            "X-Spaces-Q: =?UTF-8?Q?caf=C3=A9 cr=C3=A8me?=\r\n".
+            "X-Spaces-B: =?UTF-8?B?w6l0 w6k=?=\r\n".
+            "X-Question-Mark: =?UTF-8?Q?what?_ok?=\r\n".
+            "X-Unclosed: =?UTF-8?Q?abc\r\n".
+            "X-Adjacent: =?UTF-8?Q?a?= =?UTF-8?Q?b?="
+        );
+
+        self::assertEquals('été', $part->getHeader('X-Missing-Padding'));
+        self::assertEquals('café crème', $part->getHeader('X-Spaces-Q'));
+        self::assertEquals('été', $part->getHeader('X-Spaces-B'));
+        self::assertEquals('what? ok', $part->getHeader('X-Question-Mark'));
+        self::assertEquals('abc', $part->getHeader('X-Unclosed'));
+        self::assertEquals('a b', $part->getHeader('X-Adjacent'));
+    }
+
+    /**
+     * Test that encoded-words that can't be decoded are kept as is
+     */
+    public function testUndecodableEncodedWords()
+    {
+        $part = $this->createPartFromHeaders(
+            "X-Unknown-Charset: =?x-unknown?Q?abc?=\r\n".
+            "X-Not-Charset: =?base64?Q?abc?=\r\n".
+            "X-Not-Encoded: a=?b"
+        );
+
+        self::assertEquals('=?x-unknown?Q?abc?=', $part->getHeader('X-Unknown-Charset'));
+        self::assertEquals('=?base64?Q?abc?=', $part->getHeader('X-Not-Charset'));
+        self::assertEquals('a=?b', $part->getHeader('X-Not-Encoded'));
+    }
+
+    /**
+     * Test that header values are always valid UTF-8 and bare CR are replaced
+     */
+    public function testHeadersSanitization()
+    {
+        $part = $this->createPartFromHeaders(
+            "X-Invalid-Utf8: caf\xE9\r\n".
+            "X-Bare-Cr: a\rb"
+        );
+
+        self::assertEquals('caf?', $part->getHeader('X-Invalid-Utf8'));
+        self::assertEquals('a b', $part->getHeader('X-Bare-Cr'));
+    }
+
 }
