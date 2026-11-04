@@ -395,4 +395,91 @@ class StreamedPartTest extends TestCase
         self::assertEquals('image data', $parts[2]->getBody());
     }
 
+    /**
+     * @param string $headers
+     *
+     * @return StreamedPart
+     */
+    private function createPartFromHeaders($headers)
+    {
+        $stream = fopen('php://temp', 'rw');
+        fwrite($stream, $headers."\r\n\r\nContent");
+        rewind($stream);
+
+        return new StreamedPart($stream);
+    }
+
+    /**
+     * Test raw UTF-8 in headers, it's how browsers send non-ASCII names ( RFC 7578 )
+     */
+    public function testRawUtf8Header()
+    {
+        $part = $this->createPartFromHeaders(
+            "Content-Disposition: form-data; name=\"prénom\"; filename=\"日本語 résumé.png\""
+        );
+
+        self::assertEquals('prénom', $part->getName());
+        self::assertEquals('日本語 résumé.png', $part->getFileName());
+    }
+
+    /**
+     * Test raw UTF-8 next to an encoded-word
+     */
+    public function testRawUtf8NextToEncodedWord()
+    {
+        $part = $this->createPartFromHeaders("Subject: =?UTF-8?B?w6l0w6k=?= et été");
+
+        self::assertEquals('été et été', $part->getHeader('Subject'));
+    }
+
+    /**
+     * Test encoded-words decoding ( RFC 2047 )
+     */
+    public function testEncodedWords()
+    {
+        $part = $this->createPartFromHeaders(
+            "X-Adjacent: =?UTF-8?Q?a?=  =?UTF-8?Q?b?=\r\n".
+            "X-Separated: =?UTF-8?Q?a?= - =?UTF-8?Q?b?=\r\n".
+            "X-Latin1: =?ISO-8859-1?Q?caf=E9_cr=E8me?=\r\n".
+            "X-Language: =?UTF-8*fr?Q?=C3=A9t=C3=A9?=\r\n".
+            "X-Folded: =?UTF-8?B?w6k=?=\r\n =?UTF-8?B?w6k=?="
+        );
+
+        self::assertEquals('ab', $part->getHeader('X-Adjacent'));
+        self::assertEquals('a - b', $part->getHeader('X-Separated'));
+        self::assertEquals('café crème', $part->getHeader('X-Latin1'));
+        self::assertEquals('été', $part->getHeader('X-Language'));
+        self::assertEquals('éé', $part->getHeader('X-Folded'));
+    }
+
+    /**
+     * Test that encoded-words that can't be decoded are kept as is
+     */
+    public function testUndecodableEncodedWords()
+    {
+        $part = $this->createPartFromHeaders(
+            "X-Unknown-Charset: =?x-unknown?Q?abc?=\r\n".
+            "X-Invalid-Base64: =?UTF-8?B?w6l0w6k*?=\r\n".
+            "X-Not-Encoded: a=?b"
+        );
+
+        self::assertEquals('=?x-unknown?Q?abc?=', $part->getHeader('X-Unknown-Charset'));
+        self::assertEquals('=?UTF-8?B?w6l0w6k*?=', $part->getHeader('X-Invalid-Base64'));
+        self::assertEquals('a=?b', $part->getHeader('X-Not-Encoded'));
+    }
+
+    /**
+     * Test that header values are always valid UTF-8 and bare CR are replaced
+     */
+    public function testHeadersSanitization()
+    {
+        $part = $this->createPartFromHeaders(
+            "X-Invalid-Utf8: caf\xE9\r\n".
+            "X-Bare-Cr: a\rb"
+        );
+
+        self::assertEquals('caf?', $part->getHeader('X-Invalid-Utf8'));
+        self::assertEquals('a b', $part->getHeader('X-Bare-Cr'));
+    }
+
 }

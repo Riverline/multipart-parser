@@ -104,7 +104,7 @@ class StreamedPart
             if (2 === count($lineSplit)) {
                 list($key, $value) = $lineSplit;
                 // Decode value
-                $value = mb_decode_mimeheader(trim($value));
+                $value = self::decodeHeaderValue(trim($value));
             } else {
                 // Bogus header
                 $key = $lineSplit[0];
@@ -382,6 +382,73 @@ class StreamedPart
         }
 
         return $parts;
+    }
+
+    /**
+     * Decode RFC 2047 encoded-words and return a valid UTF-8 string
+     *
+     * Text outside encoded-words is kept as is: browsers send non-ASCII names as raw UTF-8 ( RFC 7578 )
+     * and mb_decode_mimeheader() would replace each of their bytes with "?".
+     *
+     * @param string $value
+     *
+     * @return string
+     */
+    private static function decodeHeaderValue($value)
+    {
+        // Bare CR or LF left in an unfolded header line
+        $value = str_replace(array("\r", "\n"), ' ', $value);
+
+        if (false !== strpos($value, '=?')) {
+            $encodedWord = '=\?[^?\s]+\?[BbQq]\?[^?\s]*\?=';
+
+            // Whitespace between two adjacent encoded-words is not part of the text ( RFC 2047 section 6.2 )
+            $value = preg_replace("/($encodedWord)\s+(?=$encodedWord)/", '$1', $value);
+
+            $value = preg_replace_callback(
+                // Charset may be followed by an RFC 2231 language ( =?UTF-8*fr?Q?...?= )
+                '/=\?([^?\s*]+)(?:\*[^?\s]*)?\?([BbQq])\?([^?\s]*)\?=/',
+                function ($matches) {
+                    if ('b' === strtolower($matches[2])) {
+                        $text = base64_decode($matches[3], true);
+                    } else {
+                        $text = quoted_printable_decode(str_replace('_', ' ', $matches[3]));
+                    }
+
+                    if (false !== $text) {
+                        $text = self::convertToUtf8($text, $matches[1]);
+                    }
+
+                    // Keep the encoded-word as is if it can't be decoded
+                    return (false === $text) ? $matches[0] : $text;
+                },
+                $value
+            );
+        }
+
+        // Invalid UTF-8 bytes are replaced with "?"
+        if (false === mb_check_encoding($value, 'utf-8')) {
+            $value = self::convertToUtf8($value, 'utf-8');
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param string $text
+     * @param string $charset
+     *
+     * @return string|false false if the charset is not supported
+     */
+    private static function convertToUtf8($text, $charset)
+    {
+        try {
+            // PHP < 8 emits a warning and returns false on an unknown charset
+            return @mb_convert_encoding($text, 'utf-8', $charset);
+        } catch (\Throwable $e) {
+            // PHP >= 8 throws a ValueError on an unknown charset
+            return false;
+        }
     }
 
     /**
