@@ -523,19 +523,25 @@ class StreamedPartTest extends TestCase
 
     /**
      * Test that binary bodies are never charset converted, whatever their Content-Type
-     * ( these bytes are detected as ASCII by mb_detect_encoding() on PHP 8.3 )
+     * ( a detect order that matches any bytes, so a detection would always corrupt them )
      */
     public function testBinaryBodyNotConverted()
     {
         $binary = "\xE9\xFF\x00abc";
 
-        foreach (array('image/png', 'application/pdf', 'application/octet-stream; name="a.bin"') as $contentType) {
-            $part = $this->createPartWithBody(
-                "Content-Type: $contentType\r\nContent-Transfer-Encoding: base64",
-                base64_encode($binary)
-            );
+        $detectOrder = mb_detect_order();
+        mb_detect_order(array('ISO-8859-1'));
+        try {
+            foreach (array('image/png', 'application/pdf', 'application/octet-stream; name="a.bin"') as $contentType) {
+                $part = $this->createPartWithBody(
+                    "Content-Type: $contentType\r\nContent-Transfer-Encoding: base64",
+                    base64_encode($binary)
+                );
 
-            self::assertTrue($binary === $part->getBody(), $contentType);
+                self::assertTrue($binary === $part->getBody(), $contentType);
+            }
+        } finally {
+            mb_detect_order($detectOrder);
         }
     }
 
@@ -550,9 +556,16 @@ class StreamedPartTest extends TestCase
         );
         self::assertEquals('café', $part->getBody());
 
-        // Malformed Content-Type are still considered as text
-        $part = $this->createPartWithBody("Content-Type: text\r\nContent-Transfer-Encoding: 8bit", "caf\xE9");
-        self::assertTrue(mb_check_encoding($part->getBody(), 'utf-8'));
+        // Malformed Content-Type are still considered as text: the charset is detected
+        // ( detection results vary with PHP versions, so use a detect order that always matches )
+        $detectOrder = mb_detect_order();
+        mb_detect_order(array('ISO-8859-1'));
+        try {
+            $part = $this->createPartWithBody("Content-Type: text\r\nContent-Transfer-Encoding: 8bit", "caf\xE9");
+            self::assertEquals('café', $part->getBody());
+        } finally {
+            mb_detect_order($detectOrder);
+        }
 
         // A declared charset is used whatever the Content-Type
         $part = $this->createPartWithBody(
