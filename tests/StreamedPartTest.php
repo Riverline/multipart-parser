@@ -619,6 +619,8 @@ class StreamedPartTest extends TestCase
 
         self::assertCount(1, $part->getParts());
         self::assertEquals('X', StreamedPart::getHeaderOption($part->getHeader('Content-Type'), 'Boundary'));
+        // Options keep their original case
+        self::assertEquals(array('BOUNDARY' => 'X'), StreamedPart::getHeaderOptions($part->getHeader('Content-Type')));
         self::assertEquals('text/plain', StreamedPart::getHeaderValue('text/plain ; charset=utf-8'));
     }
 
@@ -631,6 +633,8 @@ class StreamedPartTest extends TestCase
         $after = "attachment; filename=\"resume.pdf\"; filename*=UTF-8''r%C3%A9sum%C3%A9.pdf";
         self::assertEquals('résumé.pdf', StreamedPart::getHeaderOption($before, 'filename'));
         self::assertEquals('résumé.pdf', StreamedPart::getHeaderOption($after, 'filename'));
+        $mixedCase = "attachment; FileName*=UTF-8''r%C3%A9sum%C3%A9.pdf; filename=\"resume.pdf\"";
+        self::assertEquals(array('FileName' => 'résumé.pdf'), StreamedPart::getHeaderOptions($mixedCase));
 
         $continuations = "attachment; filename*1*=%C3%A9_long; filename*0*=UTF-8'fr'tr%C3%A8s; filename*2=\" name.pdf\"";
         self::assertEquals('trèsé_long name.pdf', StreamedPart::getHeaderOption($continuations, 'filename'));

@@ -315,14 +315,19 @@ class StreamedPart
     public static function getHeaderOption($header, $key, $default = null)
     {
         $options = self::getHeaderOptions($header);
-        // Case-insensitive key
-        $key = strtolower($key);
 
-        if (false === isset($options[$key])) {
-            return $default;
+        if (isset($options[$key])) {
+            return $options[$key];
         }
 
-        return $options[$key];
+        // Case-insensitive key
+        foreach ($options as $optionKey => $value) {
+            if (0 === strcasecmp($optionKey, $key)) {
+                return $value;
+            }
+        }
+
+        return $default;
     }
 
     /**
@@ -535,8 +540,7 @@ class StreamedPart
             }
 
             $partSplit = explode('=', $segment, 2);
-            // Case-insensitive key
-            $key = strtolower(trim($partSplit[0]));
+            $key = trim($partSplit[0]);
 
             if (1 === count($partSplit)) {
                 // Bogus option
@@ -555,15 +559,24 @@ class StreamedPart
                     $section = 0;
                     $encoded = true;
                 }
-                $extendedOptions[$matches['key']][$section] = array($value, $encoded);
+                $extendedKey = strtolower($matches['key']);
+                if (false === isset($extendedOptions[$extendedKey])) {
+                    $extendedOptions[$extendedKey] = array('key' => $matches['key'], 'sections' => array());
+                }
+                $extendedOptions[$extendedKey]['sections'][$section] = array($value, $encoded);
             } else {
                 $options[$key] = $value;
             }
         }
 
         // Extended options take precedence over regular ones ( RFC 6266 )
-        foreach ($extendedOptions as $key => $sections) {
-            $options[$key] = self::decodeExtendedOption($sections);
+        foreach ($extendedOptions as $extendedOption) {
+            foreach (array_keys($options) as $key) {
+                if (0 === strcasecmp($key, $extendedOption['key'])) {
+                    unset($options[$key]);
+                }
+            }
+            $options[$extendedOption['key']] = self::decodeExtendedOption($extendedOption['sections']);
         }
 
         return array($headerValue, $options);
