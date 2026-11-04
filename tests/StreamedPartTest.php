@@ -595,13 +595,35 @@ class StreamedPartTest extends TestCase
      */
     public function testQuotedHeaderOptions()
     {
-        $header = 'form-data; name="a;b=c"; filename="say \"hi\".txt"; path="C:\Users\file.txt"; spaces=" x "';
+        $header = 'form-data; name="a;b=c"; filename="say \"hi\".txt"; path="\\\\server\\share\\file.txt"; spaces=" x "';
 
         self::assertEquals('form-data', StreamedPart::getHeaderValue($header));
         self::assertEquals('a;b=c', StreamedPart::getHeaderOption($header, 'name'));
         self::assertEquals('say "hi".txt', StreamedPart::getHeaderOption($header, 'filename'));
-        self::assertEquals('C:\Users\file.txt', StreamedPart::getHeaderOption($header, 'path'));
-        self::assertEquals(' x ', StreamedPart::getHeaderOption($header, 'spaces'));
+        self::assertEquals('\\\\server\\share\\file.txt', StreamedPart::getHeaderOption($header, 'path'));
+        // Spaces are trimmed as before
+        self::assertEquals('x', StreamedPart::getHeaderOption($header, 'spaces'));
+    }
+
+    /**
+     * Test malformed header options, parsed as before
+     */
+    public function testMalformedHeaderOptions()
+    {
+        // Unclosed quote
+        $header = 'attachment; filename="abc; name=x';
+        self::assertEquals(array('filename' => 'abc', 'name' => 'x'), StreamedPart::getHeaderOptions($header));
+
+        // Windows path ending with a backslash
+        $header = 'form-data; filename="C:\\dir\\"; name="f"';
+        self::assertEquals(array('filename' => 'C:\\dir\\', 'name' => 'f'), StreamedPart::getHeaderOptions($header));
+
+        // Garbage after a quoted string
+        $header = 'attachment; filename="a.pdf" junk; name=x';
+        self::assertEquals(array('filename' => 'a.pdf" junk', 'name' => 'x'), StreamedPart::getHeaderOptions($header));
+
+        // Extended option without charset
+        self::assertEquals('abc%20d', StreamedPart::getHeaderOption('attachment; filename*=abc%20d', 'filename'));
     }
 
     /**

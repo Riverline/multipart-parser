@@ -548,7 +548,7 @@ class StreamedPart
                 continue;
             }
 
-            $value = self::unquote(trim($partSplit[1]));
+            $value = trim($partSplit[1]);
 
             if (preg_match('/^(?P<key>[^*]+)\*(?:(?P<section>\d+)(?P<encoded>\*)?)?$/', $key, $matches)) {
                 // Extended option ( key*=, key*0=, key*0*= )
@@ -563,9 +563,10 @@ class StreamedPart
                 if (false === isset($extendedOptions[$extendedKey])) {
                     $extendedOptions[$extendedKey] = array('key' => $matches['key'], 'sections' => array());
                 }
-                $extendedOptions[$extendedKey]['sections'][$section] = array($value, $encoded);
+                // Not trimmed, continuations may be split on a space
+                $extendedOptions[$extendedKey]['sections'][$section] = array(self::unquote($value, false), $encoded);
             } else {
-                $options[$key] = $value;
+                $options[$key] = self::unquote($value);
             }
         }
 
@@ -618,6 +619,12 @@ class StreamedPart
 
             $current .= $char;
         }
+
+        if ($inQuotes) {
+            // Unclosed quote ( or a path ending with a backslash ), split as before
+            return explode(';', $content);
+        }
+
         $segments[] = $current;
 
         return $segments;
@@ -625,18 +632,22 @@ class StreamedPart
 
     /**
      * @param string $value
+     * @param bool   $trim
      *
      * @return string
      */
-    private static function unquote($value)
+    private static function unquote($value, $trim = true)
     {
         if (strlen($value) < 2 || '"' !== $value[0] || '"' !== substr($value, -1)) {
-            // Not a quoted string, still remove a lone quote as before
-            return trim($value, '"');
+            // Not a quoted string, trim as before
+            return trim($value, ' "');
         }
 
-        // Only unescape \" and \\ so Windows paths sent by old browsers are kept
-        return preg_replace('/\\\\(["\\\\])/', '$1', substr($value, 1, -1));
+        // Only unescape \" so Windows and UNC paths sent by old clients are kept
+        $value = str_replace('\\"', '"', substr($value, 1, -1));
+
+        // Spaces are trimmed as before
+        return $trim ? trim($value, ' ') : $value;
     }
 
     /**
@@ -652,20 +663,27 @@ class StreamedPart
 
         $charset = null;
         $value = '';
-        foreach ($sections as $index => $section) {
+        $first = true;
+        foreach ($sections as $section) {
             list($text, $encoded) = $section;
 
-            if ($encoded) {
-                if (null === $charset
-                    && preg_match("/^(?P<charset>[\w!#$%&+^_`{}~-]*)'(?P<language>[\w-]*)'(?P<value>.*)$/s", $text, $matches)
-                ) {
+            // The charset is only in the first section
+            if ($first && $encoded) {
+                if (preg_match("/^(?P<charset>[\w!#$%&+^_`{}~-]*)'(?P<language>[\w-]*)'(?P<value>.*)$/s", $text, $matches)) {
                     $charset = $matches['charset'];
                     $text = $matches['value'];
+                } else {
+                    // Malformed, keep it as is as before
+                    $encoded = false;
                 }
+            }
+
+            if ($encoded && null !== $charset) {
                 $text = rawurldecode($text);
             }
 
             $value .= $text;
+            $first = false;
         }
 
         $converted = ('' !== (string) $charset) ? self::convertToUtf8($value, $charset) : false;
