@@ -218,25 +218,42 @@ class StreamedPart
                 break;
         }
 
-        $contentType = $this->getHeader('Content-Type');
-        $isBinary = strtolower((string) $contentType) === 'application/octet-stream';
-
         // Convert to UTF-8 ( Not if binary or 7bit ( aka Ascii ) )
-        if (! $isBinary && false === in_array($encoding, array('binary', '7bit'))) {
+        if (false === in_array($encoding, array('binary', '7bit'))) {
             // Charset
+            $contentType = $this->getHeader('Content-Type');
             $charset = self::getHeaderOption($contentType, 'charset');
-            if (null === $charset) {
-                // Try to detect
+            if (null === $charset && $this->isText()) {
+                // Try to detect, only on text: binary data could be detected as ASCII and corrupted
                 $charset = mb_detect_encoding($body) ?: 'utf-8';
             }
 
-            // Only convert if not UTF-8
-            if ('utf-8' !== strtolower($charset)) {
-                $body = mb_convert_encoding($body, 'utf-8', $charset);
+            // Only convert if not UTF-8, keep the body as is if the charset is not supported
+            if (null !== $charset && 'utf-8' !== strtolower($charset)) {
+                $converted = self::convertToUtf8($body, $charset);
+                if (false !== $converted) {
+                    $body = $converted;
+                }
             }
         }
 
         return $body;
+    }
+
+    /**
+     * Text content: "text/*" or no Content-Type at all ( text/plain by default, RFC 2045 and RFC 7578 )
+     *
+     * @return bool
+     */
+    private function isText()
+    {
+        $contentType = $this->getHeader('Content-Type');
+
+        if (null === $contentType) {
+            return true;
+        }
+
+        return 0 === strpos(strtolower(trim(self::getHeaderValue($contentType))), 'text/');
     }
 
     /**
@@ -522,11 +539,10 @@ class StreamedPart
                             $value,
                             $matches
                         )) {
-                            $value = mb_convert_encoding(
-                                rawurldecode($matches['value']),
-                                'utf-8',
-                                $matches['charset']
-                            );
+                            $value = rawurldecode($matches['value']);
+                            $converted = self::convertToUtf8($value, $matches['charset']);
+                            // Unsupported charset, keep the bytes but as valid UTF-8
+                            $value = (false !== $converted) ? $converted : self::convertToUtf8($value, 'utf-8');
                         }
                     }
                     $options[trim($key)] = trim($value, ' "');

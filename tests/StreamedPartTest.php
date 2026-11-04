@@ -506,4 +506,71 @@ class StreamedPartTest extends TestCase
         self::assertEquals('a b', $part->getHeader('X-Bare-Cr'));
     }
 
+    /**
+     * @param string $headers
+     * @param string $body
+     *
+     * @return StreamedPart
+     */
+    private function createPartWithBody($headers, $body)
+    {
+        $stream = fopen('php://temp', 'rw');
+        fwrite($stream, $headers."\r\n\r\n".$body);
+        rewind($stream);
+
+        return new StreamedPart($stream);
+    }
+
+    /**
+     * Test that binary bodies are never charset converted, whatever their Content-Type
+     * ( these bytes are detected as ASCII by mb_detect_encoding() on PHP 8.3 )
+     */
+    public function testBinaryBodyNotConverted()
+    {
+        $binary = "\xE9\xFF\x00abc";
+
+        foreach (array('image/png', 'application/pdf', 'application/octet-stream; name="a.bin"') as $contentType) {
+            $part = $this->createPartWithBody(
+                "Content-Type: $contentType\r\nContent-Transfer-Encoding: base64",
+                base64_encode($binary)
+            );
+
+            self::assertTrue($binary === $part->getBody(), $contentType);
+        }
+    }
+
+    /**
+     * Test that text bodies are still converted
+     */
+    public function testTextBodyConverted()
+    {
+        $part = $this->createPartWithBody(
+            "Content-Type: text/plain; charset=ISO-8859-1\r\nContent-Transfer-Encoding: quoted-printable",
+            'caf=E9'
+        );
+        self::assertEquals('café', $part->getBody());
+
+        // A declared charset is used whatever the Content-Type
+        $part = $this->createPartWithBody(
+            "Content-Type: application/json; charset=ISO-8859-1\r\nContent-Transfer-Encoding: base64",
+            base64_encode("\"caf\xE9\"")
+        );
+        self::assertEquals('"café"', $part->getBody());
+    }
+
+    /**
+     * Test that an unsupported charset doesn't throw
+     */
+    public function testUnsupportedCharset()
+    {
+        $part = $this->createPartWithBody(
+            "Content-Type: text/plain; charset=x-unknown\r\nContent-Transfer-Encoding: 8bit\r\n".
+            "Content-Disposition: attachment; filename*=x-unknown''caf%E9.txt",
+            'body'
+        );
+
+        self::assertEquals('body', $part->getBody());
+        self::assertEquals('caf?.txt', $part->getFileName());
+    }
+
 }
