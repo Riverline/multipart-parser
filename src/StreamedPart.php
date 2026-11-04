@@ -316,11 +316,18 @@ class StreamedPart
     {
         $options = self::getHeaderOptions($header);
 
-        if (false === isset($options[$key])) {
-            return $default;
+        if (isset($options[$key])) {
+            return $options[$key];
         }
 
-        return $options[$key];
+        // Case-insensitive key
+        foreach ($options as $optionKey => $value) {
+            if (0 === strcasecmp($optionKey, $key)) {
+                return $value;
+            }
+        }
+
+        return $default;
     }
 
     /**
@@ -513,43 +520,175 @@ class StreamedPart
     }
 
     /**
+     * Parse a header value and its parameters ( RFC 2045, RFC 2231, RFC 5987 )
+     *
      * @param string $content
      *
      * @return array
      */
     private static function parseHeaderContent($content)
     {
-        $parts = explode(';', (string) $content);
-        $headerValue = array_shift($parts);
+        $segments = self::splitHeaderContent((string) $content);
+        $headerValue = trim(array_shift($segments));
         $options = array();
+        $extendedOptions = array();
+
         // Parse options
-        foreach ($parts as $part) {
-            if (false === empty($part)) {
-                $partSplit = explode('=', $part, 2);
-                if (2 === count($partSplit)) {
-                    list ($key, $value) = $partSplit;
-                    if ('*' === substr($key, -1)) {
-                        // RFC 5987
-                        $key = substr($key, 0, -1);
-                        if (preg_match(
-                            "/(?P<charset>[\w!#$%&+^_`{}~-]+)'(?P<language>[\w-]*)'(?P<value>.*)$/",
-                            $value,
-                            $matches
-                        )) {
-                            $value = rawurldecode($matches['value']);
-                            $converted = self::convertToUtf8($value, $matches['charset']);
-                            // Unsupported charset, keep the bytes but as valid UTF-8
-                            $value = (false !== $converted) ? $converted : self::convertToUtf8($value, 'utf-8');
-                        }
-                    }
-                    $options[trim($key)] = trim($value, ' "');
+        foreach ($segments as $segment) {
+            if ('' === trim($segment)) {
+                continue;
+            }
+
+            $partSplit = explode('=', $segment, 2);
+            $key = trim($partSplit[0]);
+
+            if (1 === count($partSplit)) {
+                // Bogus option
+                $options[$key] = '';
+                continue;
+            }
+
+            $value = trim($partSplit[1]);
+
+            if (preg_match('/^(?P<key>[^*]+)\*(?:(?P<section>\d+)(?P<encoded>\*)?)?$/', $key, $matches)) {
+                // Extended option ( key*=, key*0=, key*0*= )
+                if (isset($matches['section']) && '' !== $matches['section']) {
+                    $section = (int) $matches['section'];
+                    $encoded = isset($matches['encoded']) && '' !== $matches['encoded'];
                 } else {
-                    // Bogus option
-                    $options[$partSplit[0]] = '';
+                    $section = 0;
+                    $encoded = true;
                 }
+                $extendedKey = strtolower($matches['key']);
+                if (false === isset($extendedOptions[$extendedKey])) {
+                    $extendedOptions[$extendedKey] = array('key' => $matches['key'], 'sections' => array());
+                }
+                // Not trimmed, continuations may be split on a space
+                $extendedOptions[$extendedKey]['sections'][$section] = array(self::unquote($value, false), $encoded);
+            } else {
+                $options[$key] = self::unquote($value);
             }
         }
 
+        // Extended options take precedence over regular ones ( RFC 6266 )
+        foreach ($extendedOptions as $extendedOption) {
+            foreach (array_keys($options) as $key) {
+                if (0 === strcasecmp($key, $extendedOption['key'])) {
+                    unset($options[$key]);
+                }
+            }
+            $options[$extendedOption['key']] = self::decodeExtendedOption($extendedOption['sections']);
+        }
+
         return array($headerValue, $options);
+    }
+
+    /**
+     * Split a header content on semicolons, except inside quoted strings
+     *
+     * @param string $content
+     *
+     * @return string[]
+     */
+    private static function splitHeaderContent($content)
+    {
+        $segments = array();
+        $current = '';
+        $inQuotes = false;
+        $length = strlen($content);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $content[$i];
+
+            if ($inQuotes) {
+                if ('\\' === $char && $i + 1 < $length) {
+                    // Quoted pair, keep it as is
+                    $current .= $char.$content[++$i];
+                    continue;
+                }
+                if ('"' === $char) {
+                    $inQuotes = false;
+                }
+            } elseif ('"' === $char) {
+                $inQuotes = true;
+            } elseif (';' === $char) {
+                $segments[] = $current;
+                $current = '';
+                continue;
+            }
+
+            $current .= $char;
+        }
+
+        if ($inQuotes) {
+            // Unclosed quote ( or a path ending with a backslash ), split as before
+            return explode(';', $content);
+        }
+
+        $segments[] = $current;
+
+        return $segments;
+    }
+
+    /**
+     * @param string $value
+     * @param bool   $trim
+     *
+     * @return string
+     */
+    private static function unquote($value, $trim = true)
+    {
+        if (strlen($value) < 2 || '"' !== $value[0] || '"' !== substr($value, -1)) {
+            // Not a quoted string, trim as before
+            return trim($value, ' "');
+        }
+
+        // Only unescape \" so Windows and UNC paths sent by old clients are kept
+        $value = str_replace('\\"', '"', substr($value, 1, -1));
+
+        // Spaces are trimmed as before
+        return $trim ? trim($value, ' ') : $value;
+    }
+
+    /**
+     * Join RFC 2231 continuations and decode the charset of an extended option
+     *
+     * @param array $sections [section => [value, encoded]]
+     *
+     * @return string
+     */
+    private static function decodeExtendedOption(array $sections)
+    {
+        ksort($sections);
+
+        $charset = null;
+        $value = '';
+        $first = true;
+        foreach ($sections as $section) {
+            list($text, $encoded) = $section;
+
+            // The charset is only in the first section
+            if ($first && $encoded) {
+                if (preg_match("/^(?P<charset>[\w!#$%&+^_`{}~-]*)'(?P<language>[\w-]*)'(?P<value>.*)$/s", $text, $matches)) {
+                    $charset = $matches['charset'];
+                    $text = $matches['value'];
+                } else {
+                    // Malformed, keep it as is as before
+                    $encoded = false;
+                }
+            }
+
+            if ($encoded && null !== $charset) {
+                $text = rawurldecode($text);
+            }
+
+            $value .= $text;
+            $first = false;
+        }
+
+        $converted = ('' !== (string) $charset) ? self::convertToUtf8($value, $charset) : false;
+
+        // Unsupported or missing charset, keep the bytes but as valid UTF-8
+        return (false !== $converted) ? $converted : self::convertToUtf8($value, 'utf-8');
     }
 }
