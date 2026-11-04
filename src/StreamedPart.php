@@ -103,8 +103,14 @@ class StreamedPart
 
             if (2 === count($lineSplit)) {
                 list($key, $value) = $lineSplit;
-                // Decode value
-                $value = mb_decode_mimeheader(trim($value));
+                $value = trim($value);
+                // Decode value ( Not if raw UTF-8, mb_decode_mimeheader only keeps ASCII )
+                if (false !== strpos($value, '=?')
+                    || false !== strpos($value, "\r")
+                    || false === mb_check_encoding($value, 'utf-8')
+                ) {
+                    $value = mb_decode_mimeheader($value);
+                }
             } else {
                 // Bogus header
                 $key = $lineSplit[0];

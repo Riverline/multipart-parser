@@ -395,4 +395,43 @@ class StreamedPartTest extends TestCase
         self::assertEquals('image data', $parts[2]->getBody());
     }
 
+    /**
+     * Test raw UTF-8 in headers, it's how browsers send non-ASCII names
+     */
+    public function testRawUtf8Header()
+    {
+        $content = "Content-Disposition: form-data; name=\"prénom\"; filename=\"日本語 résumé.png\"\r\n" .
+            "\r\n" .
+            "Content";
+
+        $stream = fopen('php://temp', 'rw');
+        fwrite($stream, $content);
+        rewind($stream);
+
+        $part = new StreamedPart($stream);
+
+        self::assertEquals('prénom', $part->getName());
+        self::assertEquals('日本語 résumé.png', $part->getFileName());
+    }
+
+    /**
+     * Test decoding of invalid UTF-8 and bare CR in headers
+     */
+    public function testDecodedHeaders()
+    {
+        $content = "X-Invalid-Utf8: caf\xE9\r\n" .
+            "X-Bare-Cr: a\rb\r\n" .
+            "\r\n" .
+            "Content";
+
+        $stream = fopen('php://temp', 'rw');
+        fwrite($stream, $content);
+        rewind($stream);
+
+        $part = new StreamedPart($stream);
+
+        self::assertTrue(mb_check_encoding($part->getHeader('X-Invalid-Utf8'), 'utf-8'));
+        self::assertEquals('a b', $part->getHeader('X-Bare-Cr'));
+    }
+
 }
