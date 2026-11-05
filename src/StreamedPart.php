@@ -17,14 +17,69 @@ namespace Riverline\MultiPartParser;
 class StreamedPart
 {
     /**
+     * Maximum number of options parsed in a header, the others are ignored
+     */
+    const MAX_HEADER_OPTIONS = 100;
+
+    /**
+     * Default maximum number of parts in a whole content, nested parts included
+     */
+    const DEFAULT_MAX_PARTS = 1000;
+
+    /**
+     * Default maximum number of nested multipart levels
+     */
+    const DEFAULT_MAX_DEPTH = 16;
+
+    /**
+     * @var int|null null for no limit
+     */
+    private static $maxParts = self::DEFAULT_MAX_PARTS;
+
+    /**
+     * @var int|null null for no limit
+     */
+    private static $maxDepth = self::DEFAULT_MAX_DEPTH;
+
+    /**
+     * Nesting level of the part being parsed
+     *
+     * @var int
+     */
+    private static $depth = 0;
+
+    /**
+     * Number of parts found in the content being parsed
+     *
+     * @var int
+     */
+    private static $partsCount = 0;
+
+    /**
      * @var resource
      */
     private $stream;
 
     /**
+     * Raw header values, decoded on read
+     *
      * @var array
      */
     private $headers;
+
+    /**
+     * Decoded header values, by key
+     *
+     * @var array
+     */
+    private $decodedHeaders = array();
+
+    /**
+     * Last parsed header contents
+     *
+     * @var array
+     */
+    private static $parsedHeaderContents = array();
 
     /**
      * @var int
@@ -37,9 +92,33 @@ class StreamedPart
     private $parts = array();
 
     /**
+     * Maximum number of parts in a whole content, nested parts included
+     *
+     * @param int|null $maxParts null for no limit
+     */
+    public static function setMaxParts($maxParts)
+    {
+        self::$maxParts = (null === $maxParts) ? null : (int) $maxParts;
+    }
+
+    /**
+     * Maximum number of nested multipart levels
+     *
+     * @param int|null $maxDepth null for no limit
+     */
+    public static function setMaxDepth($maxDepth)
+    {
+        self::$maxDepth = (null === $maxDepth) ? null : (int) $maxDepth;
+    }
+
+    /**
      * StreamParser constructor.
      *
      * @param resource $stream
+     *
+     * @throws \InvalidArgumentException if the content is not valid
+     * @throws \LogicException if the multipart content is not valid
+     * @throws LimitExceededException if the content has too many parts or nesting levels
      */
     public function __construct($stream)
     {
@@ -104,7 +183,8 @@ class StreamedPart
             if (2 === count($lineSplit)) {
                 list($key, $value) = $lineSplit;
                 // Decode value
-                $value = self::decodeHeaderValue(trim($value));
+                // Decoded on read, only the headers used cost anything
+                $value = trim($value);
             } else {
                 // Bogus header
                 $key = $lineSplit[0];
@@ -129,6 +209,15 @@ class StreamedPart
         // Is MultiPart ?
         if ($this->isMultiPart()) {
             // MultiPart !
+            if (0 === self::$depth) {
+                // New content
+                self::$partsCount = 0;
+            }
+
+            if (null !== self::$maxDepth && self::$depth >= self::$maxDepth) {
+                throw new LimitExceededException('Too many nested multipart levels, the limit is '.self::$maxDepth);
+            }
+
             $boundary = self::getHeaderOption($this->getHeader('Content-Type'), 'boundary');
 
             if (null === $boundary) {
@@ -150,10 +239,25 @@ class StreamedPart
                         $currentOffset = ftell($this->stream);
                         $partLength = $currentOffset - $partOffset - strlen($line) - $eofLength;
 
-                        // Copy part in a new stream
-                        $partStream = fopen('php://temp', 'rw');
-                        stream_copy_to_stream($this->stream, $partStream, $partLength, $partOffset);
-                        $this->parts[] = new self($partStream);
+                        // Negative length: two adjacent separators, there is no part
+                        // ( stream_copy_to_stream() would copy until the end of the stream )
+                        if ($partLength >= 0) {
+                            if (null !== self::$maxParts && ++self::$partsCount > self::$maxParts) {
+                                throw new LimitExceededException('Too many parts, the limit is '.self::$maxParts);
+                            }
+
+                            // Copy part in a new stream
+                            $partStream = fopen('php://temp', 'rw');
+                            stream_copy_to_stream($this->stream, $partStream, $partLength, $partOffset);
+
+                            self::$depth++;
+                            try {
+                                $this->parts[] = new self($partStream);
+                            } finally {
+                                self::$depth--;
+                            }
+                        }
+
                         // Reset current stream offset
                         fseek($this->stream, $currentOffset);
                     }
@@ -258,7 +362,11 @@ class StreamedPart
      */
     public function getHeaders()
     {
-        return $this->headers;
+        foreach (array_keys($this->headers) as $key) {
+            $this->getHeader($key);
+        }
+
+        return $this->decodedHeaders;
     }
 
     /**
@@ -277,7 +385,14 @@ class StreamedPart
             return $default;
         }
 
-        return $this->headers[$key];
+        if (false === array_key_exists($key, $this->decodedHeaders)) {
+            $value = $this->headers[$key];
+            $this->decodedHeaders[$key] = is_array($value)
+                ? array_map(array(__CLASS__, 'decodeHeaderValue'), $value)
+                : self::decodeHeaderValue($value);
+        }
+
+        return $this->decodedHeaders[$key];
     }
 
     /**
@@ -421,6 +536,7 @@ class StreamedPart
         $value = str_replace(array("\r", "\n"), ' ', $value);
 
         if (false !== strpos($value, '=?')) {
+            // Decoded in PHP, mb_decode_mimeheader() results vary with PHP versions ( "_" in Q encoding before PHP 8.3 )
             // As tolerant as mb_decode_mimeheader(): spaces or "?" in the encoded text, missing "?=" at the end
             // Whitespace between adjacent encoded-words is kept, like mb_decode_mimeheader() did
             $value = preg_replace_callback(
@@ -528,10 +644,35 @@ class StreamedPart
      */
     private static function parseHeaderContent($content)
     {
-        $segments = self::splitHeaderContent((string) $content);
+        $content = (string) $content;
+
+        // The same header is often parsed several times in a row ( isFile(), getName(), getFileName() )
+        if (isset(self::$parsedHeaderContents[$content])) {
+            return self::$parsedHeaderContents[$content];
+        }
+        if (count(self::$parsedHeaderContents) >= 8) {
+            array_shift(self::$parsedHeaderContents);
+        }
+
+        return self::$parsedHeaderContents[$content] = self::doParseHeaderContent($content);
+    }
+
+    /**
+     * @param string $content
+     *
+     * @return array
+     */
+    private static function doParseHeaderContent($content)
+    {
+        $segments = self::splitHeaderContent($content);
         $headerValue = trim(array_shift($segments));
         $options = array();
         $extendedOptions = array();
+
+        // Legitimate headers have a few options, even with RFC 2231 continuations, ignore the rest
+        if (count($segments) > self::MAX_HEADER_OPTIONS) {
+            $segments = array_slice($segments, 0, self::MAX_HEADER_OPTIONS);
+        }
 
         // Parse options
         foreach ($segments as $segment) {
@@ -550,7 +691,9 @@ class StreamedPart
 
             $value = trim($partSplit[1]);
 
-            if (preg_match('/^(?P<key>[^*]+)\*(?:(?P<section>\d+)(?P<encoded>\*)?)?$/', $key, $matches)) {
+            if (false !== strpos($key, '*')
+                && preg_match('/^(?P<key>[^*]+)\*(?:(?P<section>\d+)(?P<encoded>\*)?)?$/', $key, $matches)
+            ) {
                 // Extended option ( key*=, key*0=, key*0*= )
                 if (isset($matches['section']) && '' !== $matches['section']) {
                     $section = (int) $matches['section'];
@@ -571,13 +714,20 @@ class StreamedPart
         }
 
         // Extended options take precedence over regular ones ( RFC 6266 )
-        foreach ($extendedOptions as $extendedOption) {
+        if (count($extendedOptions) > 0) {
+            $keysByLowercase = array();
             foreach (array_keys($options) as $key) {
-                if (0 === strcasecmp($key, $extendedOption['key'])) {
-                    unset($options[$key]);
-                }
+                $keysByLowercase[strtolower($key)][] = $key;
             }
-            $options[$extendedOption['key']] = self::decodeExtendedOption($extendedOption['sections']);
+
+            foreach ($extendedOptions as $extendedKey => $extendedOption) {
+                if (isset($keysByLowercase[$extendedKey])) {
+                    foreach ($keysByLowercase[$extendedKey] as $key) {
+                        unset($options[$key]);
+                    }
+                }
+                $options[$extendedOption['key']] = self::decodeExtendedOption($extendedOption['sections']);
+            }
         }
 
         return array($headerValue, $options);
@@ -592,42 +742,21 @@ class StreamedPart
      */
     private static function splitHeaderContent($content)
     {
-        $segments = array();
-        $current = '';
-        $inQuotes = false;
-        $length = strlen($content);
-
-        for ($i = 0; $i < $length; $i++) {
-            $char = $content[$i];
-
-            if ($inQuotes) {
-                if ('\\' === $char && $i + 1 < $length) {
-                    // Quoted pair, keep it as is
-                    $current .= $char.$content[++$i];
-                    continue;
-                }
-                if ('"' === $char) {
-                    $inQuotes = false;
-                }
-            } elseif ('"' === $char) {
-                $inQuotes = true;
-            } elseif (';' === $char) {
-                $segments[] = $current;
-                $current = '';
-                continue;
-            }
-
-            $current .= $char;
+        if (false === strpos($content, '"')) {
+            return explode(';', $content);
         }
 
-        if ($inQuotes) {
+        // Only quoted strings ( with \x quoted pairs ) and other characters, possessive to avoid backtracking
+        if (1 !== preg_match('/^(?:[^"]++|"(?:[^"\\\\]++|\\\\.)*+")*+$/s', $content)) {
             // Unclosed quote ( or a path ending with a backslash ), split as before
             return explode(';', $content);
         }
 
-        $segments[] = $current;
+        // Split on semicolons outside of quoted strings
+        $segments = preg_split('/"(?:[^"\\\\]++|\\\\.)*+"(*SKIP)(*FAIL)|;/s', $content);
 
-        return $segments;
+        // PCRE limit reached, split as before
+        return is_array($segments) ? $segments : explode(';', $content);
     }
 
     /**

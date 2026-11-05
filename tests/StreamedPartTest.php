@@ -441,7 +441,6 @@ class StreamedPartTest extends TestCase
             "X-Latin1: =?ISO-8859-1?Q?caf=E9_cr=E8me?=\r\n".
             "X-Lowercase: =?utf-8?q?caf=c3=a9?=\r\n".
             "X-Mime-Name: =?Shift_JIS?B?k/qWe4zq?=\r\n".
-            "X-Language: =?UTF-8*fr?Q?=C3=A9t=C3=A9?=\r\n".
             "X-In-Quotes: attachment; filename=\"=?UTF-8?B?w6l0w6kucGRm?=\"\r\n".
             "X-Separated: =?UTF-8?Q?a?= - =?UTF-8?Q?b?="
         );
@@ -449,47 +448,37 @@ class StreamedPartTest extends TestCase
         self::assertEquals('café crème', $part->getHeader('X-Latin1'));
         self::assertEquals('café', $part->getHeader('X-Lowercase'));
         self::assertEquals('日本語', $part->getHeader('X-Mime-Name'));
-        self::assertEquals('été', $part->getHeader('X-Language'));
         self::assertEquals('attachment; filename="été.pdf"', $part->getHeader('X-In-Quotes'));
         self::assertEquals('a - b', $part->getHeader('X-Separated'));
     }
 
     /**
-     * Test malformed encoded-words, decoded as mb_decode_mimeheader() did
+     * Test malformed encoded-words, decoded as tolerantly as mb_decode_mimeheader() on PHP >= 8.3
      */
     public function testMalformedEncodedWords()
     {
-        $part = $this->createPartFromHeaders(
-            "X-Missing-Padding: =?UTF-8?B?w6l0w6k?=\r\n".
-            "X-Spaces-Q: =?UTF-8?Q?caf=C3=A9 cr=C3=A8me?=\r\n".
-            "X-Spaces-B: =?UTF-8?B?w6l0 w6k=?=\r\n".
-            "X-Question-Mark: =?UTF-8?Q?what?_ok?=\r\n".
-            "X-Unclosed: =?UTF-8?Q?abc\r\n".
-            "X-Adjacent: =?UTF-8?Q?a?= =?UTF-8?Q?b?="
+        $values = array(
+            'X-Language' => array('=?UTF-8*fr?Q?=C3=A9t=C3=A9?=', 'été'),
+            'X-Missing-Padding' => array('=?UTF-8?B?w6l0w6k?=', 'été'),
+            'X-Spaces-Q' => array('=?UTF-8?Q?caf=C3=A9 cr=C3=A8me?=', 'café crème'),
+            'X-Spaces-B' => array('=?UTF-8?B?w6l0 w6k=?=', 'été'),
+            'X-Question-Mark' => array('=?UTF-8?Q?what?_ok?=', 'what? ok'),
+            'X-Unclosed' => array('=?UTF-8?Q?abc', 'abc'),
+            'X-Adjacent' => array('=?UTF-8?Q?a?= =?UTF-8?Q?b?=', 'a b'),
+            'X-Unknown-Charset' => array('=?x-unknown?Q?abc?=', '=?x-unknown?Q?abc?='),
+            'X-Not-Charset' => array('=?base64?Q?abc?=', '=?base64?Q?abc?='),
+            'X-Not-Encoded' => array('a=?b', 'a=?b'),
         );
 
-        self::assertEquals('été', $part->getHeader('X-Missing-Padding'));
-        self::assertEquals('café crème', $part->getHeader('X-Spaces-Q'));
-        self::assertEquals('été', $part->getHeader('X-Spaces-B'));
-        self::assertEquals('what? ok', $part->getHeader('X-Question-Mark'));
-        self::assertEquals('abc', $part->getHeader('X-Unclosed'));
-        self::assertEquals('a b', $part->getHeader('X-Adjacent'));
-    }
+        $headers = '';
+        foreach ($values as $key => $value) {
+            $headers .= "$key: {$value[0]}\r\n";
+        }
+        $part = $this->createPartFromHeaders(rtrim($headers));
 
-    /**
-     * Test that encoded-words that can't be decoded are kept as is
-     */
-    public function testUndecodableEncodedWords()
-    {
-        $part = $this->createPartFromHeaders(
-            "X-Unknown-Charset: =?x-unknown?Q?abc?=\r\n".
-            "X-Not-Charset: =?base64?Q?abc?=\r\n".
-            "X-Not-Encoded: a=?b"
-        );
-
-        self::assertEquals('=?x-unknown?Q?abc?=', $part->getHeader('X-Unknown-Charset'));
-        self::assertEquals('=?base64?Q?abc?=', $part->getHeader('X-Not-Charset'));
-        self::assertEquals('a=?b', $part->getHeader('X-Not-Encoded'));
+        foreach ($values as $key => $value) {
+            self::assertEquals($value[1], $part->getHeader($key), $key);
+        }
     }
 
     /**
@@ -660,6 +649,125 @@ class StreamedPartTest extends TestCase
 
         $continuations = "attachment; filename*1*=%C3%A9_long; filename*0*=UTF-8'fr'tr%C3%A8s; filename*2=\" name.pdf\"";
         self::assertEquals('trèsé_long name.pdf', StreamedPart::getHeaderOption($continuations, 'filename'));
+    }
+
+    /**
+     * @param string $contentType
+     * @param string $body
+     *
+     * @return StreamedPart
+     */
+    private function createMultiPart($contentType, $body)
+    {
+        $stream = fopen('php://temp', 'rw');
+        fwrite($stream, "Content-Type: $contentType\r\n\r\n".$body);
+        rewind($stream);
+
+        return new StreamedPart($stream);
+    }
+
+    /**
+     * @param int $levels number of nested multipart levels, the root included
+     *
+     * @return string
+     */
+    private function createNestedBody($levels)
+    {
+        $head = $tail = '';
+        for ($i = 0; $i < $levels - 1; $i++) {
+            $head .= "--b$i\r\nContent-Type: multipart/mixed; boundary=b".($i + 1)."\r\n\r\n";
+            $tail = "\r\n--b$i--".$tail;
+        }
+        $last = $levels - 1;
+
+        return $head."--b$last\r\n\r\nx\r\n--b$last--".$tail;
+    }
+
+    /**
+     * Test that adjacent separators don't copy the rest of the content for each of them
+     */
+    public function testAdjacentSeparators()
+    {
+        $part = $this->createMultiPart(
+            'multipart/form-data; boundary=a',
+            str_repeat("--a\r\n", 50000)."Content-Disposition: form-data; name=\"f\"\r\n\r\nx\r\n--a--"
+        );
+
+        $parts = $part->getParts();
+        self::assertCount(1, $parts);
+        self::assertEquals('f', $parts[0]->getName());
+        self::assertEquals('x', $parts[0]->getBody());
+        // The rest of the content used to be copied for each separator: hundreds of MB
+        self::assertTrue(memory_get_peak_usage() < 64 * 1024 * 1024);
+    }
+
+    /**
+     * Test the maximum number of parts, nested parts included
+     */
+    public function testMaxParts()
+    {
+        $parts = str_repeat("--a\r\nContent-Disposition: form-data; name=\"f\"\r\n\r\nx\r\n", StreamedPart::DEFAULT_MAX_PARTS);
+
+        $part = $this->createMultiPart('multipart/form-data; boundary=a', $parts.'--a--');
+        self::assertCount(StreamedPart::DEFAULT_MAX_PARTS, $part->getParts());
+
+        try {
+            $this->createMultiPart('multipart/form-data; boundary=a', $parts."--a\r\n\r\nx\r\n--a--");
+            self::assertTrue(false, 'Too many parts should throw');
+        } catch (LimitExceededException $e) {
+            self::assertTrue($e instanceof \LogicException);
+        }
+
+        // Nested parts count too
+        StreamedPart::setMaxParts(2);
+        try {
+            $this->createMultiPart('multipart/mixed; boundary=b0', $this->createNestedBody(3));
+            self::assertTrue(false, 'Too many nested parts should throw');
+        } catch (LimitExceededException $e) {
+            self::assertEquals('Too many parts, the limit is 2', $e->getMessage());
+        } finally {
+            StreamedPart::setMaxParts(StreamedPart::DEFAULT_MAX_PARTS);
+        }
+
+        // The count is per content
+        $part = $this->createMultiPart('multipart/form-data; boundary=a', $parts.'--a--');
+        self::assertCount(StreamedPart::DEFAULT_MAX_PARTS, $part->getParts());
+    }
+
+    /**
+     * Test the maximum number of nested multipart levels
+     */
+    public function testMaxDepth()
+    {
+        $part = $this->createMultiPart('multipart/mixed; boundary=b0', $this->createNestedBody(StreamedPart::DEFAULT_MAX_DEPTH));
+        self::assertCount(1, $part->getParts());
+
+        try {
+            $this->createMultiPart('multipart/mixed; boundary=b0', $this->createNestedBody(StreamedPart::DEFAULT_MAX_DEPTH + 1));
+            self::assertTrue(false, 'Too many nested levels should throw');
+        } catch (LimitExceededException $e) {
+            self::assertEquals('Too many nested multipart levels, the limit is 16', $e->getMessage());
+        }
+
+        // The depth is restored after an exception
+        $part = $this->createMultiPart('multipart/mixed; boundary=b0', $this->createNestedBody(StreamedPart::DEFAULT_MAX_DEPTH));
+        self::assertCount(1, $part->getParts());
+    }
+
+    /**
+     * Test that limits can be removed
+     */
+    public function testNoLimits()
+    {
+        StreamedPart::setMaxParts(null);
+        StreamedPart::setMaxDepth(null);
+        try {
+            $part = $this->createMultiPart('multipart/mixed; boundary=b0', $this->createNestedBody(StreamedPart::DEFAULT_MAX_DEPTH + 5));
+            self::assertCount(1, $part->getParts());
+        } finally {
+            StreamedPart::setMaxParts(StreamedPart::DEFAULT_MAX_PARTS);
+            StreamedPart::setMaxDepth(StreamedPart::DEFAULT_MAX_DEPTH);
+        }
     }
 
 }
